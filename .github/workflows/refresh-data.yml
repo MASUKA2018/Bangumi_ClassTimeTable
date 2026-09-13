@@ -29,12 +29,14 @@ jobs:
           python3 -c "import sys; sys.path.insert(0,'scripts'); from bgm_dataset import fetch_dataset; fetch_dataset()"
 
       - name: 同步 bgm.wiki 每集精确时刻
+        shell: bash
         env:
           BGM_WIKI_TOKEN: ${{ secrets.BGM_WIKI_TOKEN }}
           # 表达式不直接插进 shell(scanner 会报 run-shell-injection;boolean 输入
           # 本无注入面,走 env 是零成本的规范写法)
           BACKFILL_FLAG: ${{ inputs.backfill && '--backfill' || '' }}
         run: |
+          set -o pipefail
           if [ -z "$BGM_WIKI_TOKEN" ]; then
             echo "::warning::缺 BGM_WIKI_TOKEN secret,跳过同步"
             exit 0
