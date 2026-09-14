@@ -23,21 +23,21 @@ npm run dev
 npm run desktop:build
 ```
 
-Windows 会生成面向当前用户安装的 NSIS `-setup.exe` 与简体中文 MSI，macOS 会生成 `.app` 和 `.dmg`。Windows 安装器内嵌约 1.8 MB 的 WebView2 bootstrapper；Windows 10/11 已有合适运行时便直接使用，否则安装器会补装。桌面端会保存窗口大小、位置和最大化状态，重复启动快捷方式会聚焦已有窗口。关闭或最小化主窗口会将应用收进系统托盘，左键托盘图标恢复窗口，右键菜单中的“退出”才会结束后台提醒。
+Windows 会生成面向当前用户安装的 NSIS `-setup.exe` 与简体中文 MSI，macOS 只生成 `.app`。Windows 安装器内嵌约 1.8 MB 的 WebView2 bootstrapper；Windows 10/11 已有合适运行时便直接使用，否则安装器会补装。桌面端会保存窗口大小、位置和最大化状态，重复启动快捷方式会聚焦已有窗口。关闭或最小化主窗口会将应用收进系统托盘，左键托盘图标恢复窗口，右键菜单中的“退出”才会结束后台提醒。
 
 设置页将番剧提醒拆为“在看”与“未在看”两组，可分别开关、设置不同时间并预览。Windows 和 macOS 原生端优先在主屏工作区右下角显示无边框主题卡片，包含封面、标题、当天放送时间和更新集数；多部番剧可在卡片内切换，两类同时出现会自动错开。提醒按当前选择的日本/本地时区和深夜日界计算，每组同一课表日只显示一次，窗口创建失败时回落到系统通知。macOS 使用主题匹配的不透明卡片底层，避免启用影响 Mac App Store 上架的私有透明窗口 API。
 
 当前 beta 通过运行中的客户端计时，退出应用后不会在后台唤醒，到点前需保持客户端运行。提醒内容完全由已加载的公开课表数据在本机生成，不需要 Bangumi 账号，也不需要 `BGM_WIKI_TOKEN`。
 
-macOS 安装包必须在 macOS 构建，Windows 安装包必须在 Windows 构建。仓库的 `Windows Client` 和 `macOS Client` GitHub Actions 会在 `main`、Pull Request 和手动触发时分别验证两个桌面平台；产物可在对应 Actions run 的 Artifacts 区下载。
+macOS 应用必须在 macOS 构建，Windows 安装包必须在 Windows 构建。仓库的 `Windows Client` 和 `macOS Client` GitHub Actions 会在 `main`、Pull Request 和手动触发时分别验证两个桌面平台；产物可在对应 Actions run 的 Artifacts 区下载。
 
-只在 macOS 上生成应用与磁盘映像：
+只在 macOS 上生成应用：
 
 ```bash
-npm run desktop:build -- --bundles app,dmg
+npm run desktop:build -- --bundles app
 ```
 
-本地产物位于 `src-tauri/target/release/bundle/macos/` 和 `src-tauri/target/release/bundle/dmg/`。当前 beta 只做临时签名，尚未配置 Apple Developer ID 签名和公证；正式对外分发前需要完成这两项配置。
+本地产物位于 `src-tauri/target/release/bundle/macos/`。当前 beta 只做临时签名，尚未配置 Apple Developer ID 签名和公证；正式对外分发前需要完成这两项配置。
 
 只在 Windows 上生成两种安装包：
 

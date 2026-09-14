@@ -13,6 +13,15 @@ const CHANGELOG: LogEntry[] = [
   {
     d: '2026-09-14',
     x: {
+      'zh-Hans': '桌面端 beta 0.3.1:移除封面补全的 40 部上限，优先补全在看/想看并限速补齐全部课表；封面加载失败时显示占位符',
+      'zh-Hant': '桌面端 beta 0.3.1:移除封面補全的 40 部上限，優先補全在看/想看並限速補齊全部課表；封面載入失敗時顯示預留圖',
+      ja: 'デスクトップ beta 0.3.1:表紙補完の40作品制限を撤廃。視聴中/見たい作品を優先し、全番組の表紙を順次補完。読み込み失敗時はプレースホルダーを表示',
+      en: 'Desktop beta 0.3.1: removed the 40-show cover limit, prioritizes Watching/Wish titles, then rate-limits completion for the whole timetable; failed images show a placeholder',
+    },
+  },
+  {
+    d: '2026-09-14',
+    x: {
       'zh-Hans': '桌面端 beta 0.3.0:在看/未在看提醒可分别定时;右下角主题卡片展示封面、标题、放送时间与集数;关闭或最小化后驻留托盘',
       'zh-Hant': '桌面端 beta 0.3.0:在看/未在看提醒可分別定時;右下角主題卡片展示封面、標題、放送時間與集數;關閉或最小化後常駐系統匣',
       ja: 'デスクトップ beta 0.3.0:視聴中/その他の通知を個別設定。右下カードに表紙・題名・放送時刻・話数を表示。閉じる/最小化後もトレイに常駐',

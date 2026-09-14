@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { AirFix, BgmAccount, CollectMemo, FriendsMap, Settings, Show, Tracking, WatchStatus } from './types'
-import { fetchCalendar, fetchSubject, fetchUserWatching, type SubjectInfo } from './lib/api'
+import { fetchCalendar, fetchSubject, fetchUserWatching, readCachedSubject, type SubjectInfo } from './lib/api'
 import {
   BgmAuthError,
   STATUS_TO_TYPE,
@@ -363,27 +363,36 @@ export default function App() {
     }
   }, [seasonSel, packs])
 
-  // ── 背景补全:在追的番 + 流媒体番,懒拉集数/封面(有 7 天缓存) ──
+  // ── 背景补全:优先在追/想看,再补齐所有缺失封面(详情缓存 7 天) ──
   const enriched = useRef(new Set<number>())
   useEffect(() => {
     if (!shows) return
+    const priority = (s: Show) => {
+      const status = tracking.status[s.id]
+      return status === 'watching' || status === 'wish' ? 2 : !s.fromCalendar ? 1 : 0
+    }
     const targets = shows
       .filter((s) => {
         const tracked = tracking.status[s.id] === 'watching' || tracking.status[s.id] === 'wish'
-        return (tracked || !s.fromCalendar) && (!s.epsTotal || !s.image) && !enriched.current.has(s.id)
+        return (!s.image || (tracked && !s.epsTotal)) && !enriched.current.has(s.id)
       })
-      .slice(0, 40)
+      .sort((a, b) => priority(b) - priority(a))
     if (targets.length === 0) return
     let alive = true
     ;(async () => {
       for (const t of targets) {
         enriched.current.add(t.id)
         try {
-          const info = await fetchSubject(t.id)
+          const cached = readCachedSubject(t.id)
+          const info = cached ?? (await fetchSubject(t.id))
           if (!alive) return
           applySubjectInfo(info)
-        } catch {}
-        await new Promise((r) => setTimeout(r, 120))
+          // 缓存命中不占用网络配额；真实请求限制在约每秒 3 次。
+          if (!cached) await new Promise((r) => setTimeout(r, 350))
+        } catch (error) {
+          enriched.current.delete(t.id)
+          console.warn(`补全番剧 ${t.id} 的封面失败`, error)
+        }
       }
     })()
     return () => {

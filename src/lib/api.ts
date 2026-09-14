@@ -8,6 +8,7 @@ import { remoteFetch } from './native'
 
 const API = 'https://api.bgm.tv'
 const CACHE_PREFIX = 'btt:cache:'
+const SUBJECT_CACHE_TTL = 7 * 86400_000
 
 interface CacheEntry<T> {
   t: number
@@ -103,8 +104,12 @@ export interface SubjectInfo {
   hotTags?: string[] // 大家打得最多的标签,收藏面板的"常用标签"推荐
 }
 
+export function readCachedSubject(id: number): SubjectInfo | null {
+  return readCache<SubjectInfo>(`subject:${id}`, SUBJECT_CACHE_TTL)
+}
+
 export function fetchSubject(id: number): Promise<SubjectInfo> {
-  return cachedJson(`subject:${id}`, `${API}/v0/subjects/${id}`, 7 * 86400_000, (raw: any) => ({
+  return cachedJson(`subject:${id}`, `${API}/v0/subjects/${id}`, SUBJECT_CACHE_TTL, (raw: any) => ({
     id: raw.id,
     eps: raw.total_episodes || raw.eps || undefined,
     summary: raw.summary || undefined,
