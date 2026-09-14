@@ -11,6 +11,15 @@ interface LogEntry {
 
 const CHANGELOG: LogEntry[] = [
   {
+    d: '2026-09-15',
+    x: {
+      'zh-Hans': '桌面端 beta 0.3.2:修复当季实时日历返回 HTTP 封面，导致安装版拦截图片并显示“番”字的问题；旧缓存也会自动转换为 HTTPS',
+      'zh-Hant': '桌面端 beta 0.3.2:修復當季即時日曆返回 HTTP 封面，導致安裝版攔截圖片並顯示「番」字的問題；舊快取也會自動轉換為 HTTPS',
+      ja: 'デスクトップ beta 0.3.2:今期のリアルタイム番組表が返す HTTP 表紙を HTTPS に変換。インストール版で「番」と表示される問題を修正し、旧キャッシュも自動変換',
+      en: 'Desktop beta 0.3.2: upgrades current-season HTTP cover URLs to HTTPS so installed apps no longer replace them with placeholders; legacy cache entries are converted too',
+    },
+  },
+  {
     d: '2026-09-14',
     x: {
       'zh-Hans': '桌面端 beta 0.3.1:移除封面补全的 40 部上限，优先补全在看/想看并限速补齐全部课表；封面加载失败时显示占位符',
