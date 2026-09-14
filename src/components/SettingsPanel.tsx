@@ -4,6 +4,7 @@ import { clearApiCache } from '../lib/api'
 import { t, wdFull } from '../lib/i18n'
 import { loadPersisted } from '../lib/store'
 import type { OauthConf } from '../lib/oauth'
+import type { ReminderKind, ReminderStatus } from '../lib/notifications'
 
 interface Props {
   settings: Settings
@@ -12,11 +13,14 @@ interface Props {
   sync: { msg: string; busy: boolean }
   scheduleDataAt?: string
   oauth: OauthConf | null
+  reminderStatus: Record<ReminderKind, ReminderStatus>
   onOauthLogin: () => void
   onLogin: (token: string) => Promise<void>
   onLogout: () => void
   onSyncNow: () => void
   onChange: (patch: Partial<Settings>) => void
+  onReminderEnabled: (kind: ReminderKind, enabled: boolean) => void
+  onTestReminder: (kind: ReminderKind) => void
   onExportIcs: () => void
   onClose: () => void
 }
@@ -28,11 +32,14 @@ export default function SettingsPanel({
   sync,
   scheduleDataAt,
   oauth,
+  reminderStatus,
   onOauthLogin,
   onLogin,
   onLogout,
   onSyncNow,
   onChange,
+  onReminderEnabled,
+  onTestReminder,
   onExportIcs,
   onClose,
 }: Props) {
@@ -223,6 +230,77 @@ export default function SettingsPanel({
             </select>
           )}
         </div>
+
+        {(
+          [
+            {
+              kind: 'watching',
+              label: '在看提醒',
+              enabled: settings.watchingReminderEnabled,
+              time: settings.watchingReminderTime,
+              hint: '当天更新的“在看”番剧使用带封面的主题卡片提醒。',
+            },
+            {
+              kind: 'other',
+              label: '未在看提醒',
+              enabled: settings.otherReminderEnabled,
+              time: settings.otherReminderTime,
+              hint: '当天更新但未标记“在看”的番剧单独提醒。',
+            },
+          ] as const
+        ).map((reminder) => {
+          const status = reminderStatus[reminder.kind]
+          return (
+            <div className="reminder-setting" key={reminder.kind}>
+              <div className="set-row">
+                <span className="lbl">{t(reminder.label)}</span>
+                <span className="seg small">
+                  <button className={reminder.enabled ? 'on' : ''} onClick={() => onReminderEnabled(reminder.kind, true)}>
+                    {t('开启提醒')}
+                  </button>
+                  <button className={!reminder.enabled ? 'on' : ''} onClick={() => onReminderEnabled(reminder.kind, false)}>
+                    {t('关闭提醒')}
+                  </button>
+                </span>
+                <input
+                  className="reminder-time"
+                  type="time"
+                  aria-label={t('提醒时间')}
+                  title={t('提醒时间')}
+                  value={reminder.time}
+                  disabled={!reminder.enabled}
+                  onChange={(e) =>
+                    onChange(
+                      reminder.kind === 'watching'
+                        ? { watchingReminderTime: e.target.value }
+                        : { otherReminderTime: e.target.value },
+                    )
+                  }
+                />
+                <button className="iconbtn" onClick={() => onTestReminder(reminder.kind)}>
+                  {t('预览提醒')}
+                </button>
+              </div>
+              <div className="set-sub">{t(reminder.hint)}</div>
+              {status !== 'idle' && (
+                <div className={`set-sub${['denied', 'unsupported', 'failed'].includes(status) ? ' err' : ''}`}>
+                  {t(
+                    status === 'enabled'
+                      ? '提醒已开启'
+                      : status === 'sent'
+                        ? '提醒已显示'
+                        : status === 'denied'
+                          ? '通知权限被拒绝,请在 Windows 设置中允许番组课表发送通知。'
+                          : status === 'unsupported'
+                            ? '当前环境不支持系统通知。'
+                            : '显示提醒失败,请稍后重试。',
+                  )}
+                </div>
+              )}
+            </div>
+          )
+        })}
+        <div className="set-sub reminder-note">{t('两类提醒可使用不同时间；客户端需要保持运行。')}</div>
 
         <div className="set-row">
           <span className="lbl">{t('好友')}</span>

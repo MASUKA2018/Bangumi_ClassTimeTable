@@ -27,6 +27,22 @@ import { currentSeason, displayTz, partsInZone, seasonStartInstant } from './lib
 import { fetchSeasonList, fetchSeasonPack, fmtSeason, seasonMonthOf, seasonStartOf } from './lib/seasons'
 import { buildIcs, downloadIcs } from './lib/ics'
 import { loadPersisted, savePersisted, type RegionClass } from './lib/store'
+import {
+  buildRichReminderPayload,
+  isDailyReminderDue,
+  markReminderDelivered,
+  notificationPermissionGranted,
+  readLastReminderDay,
+  reminderDayKey,
+  requestNotificationAccess,
+  richReminderToSystemMessage,
+  sendSystemNotification,
+  type ReminderKind,
+  type RichReminderPayload,
+  type ReminderStatus,
+} from './lib/notifications'
+import { showRichReminder } from './lib/reminderWindow'
+import { isNativeApp } from './lib/native'
 import WeekView from './components/WeekView'
 import DayView from './components/DayView'
 import MonthView, { type MonthCursor } from './components/MonthView'
@@ -92,6 +108,28 @@ const THEMES: [Settings['theme'], string][] = [
   ['light', '白色'],
 ]
 
+const REMINDER_KINDS: ReminderKind[] = ['watching', 'other']
+
+/** 原生端优先展示主题卡片；创建卡片窗口失败或网页端则回落到系统通知。 */
+async function deliverReminder(payload: RichReminderPayload, allowPermissionPrompt: boolean) {
+  if (isNativeApp()) {
+    try {
+      await showRichReminder(payload)
+      return 'granted' as const
+    } catch (error) {
+      console.warn('富提醒窗口创建失败，回落到系统通知', error)
+    }
+  }
+  const access = allowPermissionPrompt
+    ? await requestNotificationAccess()
+    : (await notificationPermissionGranted())
+      ? 'granted'
+      : 'denied'
+  if (access !== 'granted') return access
+  await sendSystemNotification(richReminderToSystemMessage(payload))
+  return 'granted' as const
+}
+
 export default function App() {
   const init = useRef(loadPersisted())
   const [settings, setSettings] = useState<Settings>(init.current.settings)
@@ -125,6 +163,11 @@ export default function App() {
   const [friendsMap, setFriendsMap] = useState<FriendsMap>(new Map())
   const [friendErrors, setFriendErrors] = useState<Record<string, string>>({})
   const [now, setNow] = useState(() => Date.now())
+  const [reminderStatus, setReminderStatus] = useState<Record<ReminderKind, ReminderStatus>>({
+    watching: 'idle',
+    other: 'idle',
+  })
+  const reminderSending = useRef(new Set<ReminderKind>())
   const [account, setAccount] = useState<BgmAccount | null>(() => loadAccount())
   const [syncState, setSyncState] = useState<{ msg: string; busy: boolean }>({ msg: '', busy: false })
   const [oauthConf, setOauthConf] = useState<OauthConf | null>(null)
@@ -414,6 +457,11 @@ export default function App() {
     () => (baseShows ? baseShows.map((s) => (overrides[s.id] ? { ...s, airFix: overrides[s.id] } : s)) : null),
     [baseShows, overrides],
   )
+  // 浏览归档季时,每日提醒仍始终使用实时当季数据。
+  const liveReminderShows = useMemo(
+    () => (shows ? shows.map((s) => (overrides[s.id] ? { ...s, airFix: overrides[s.id] } : s)) : null),
+    [shows, overrides],
+  )
 
   const setOverride = useCallback((id: number, fix: AirFix | null) => {
     setOverrides((o) => {
@@ -595,6 +643,93 @@ export default function App() {
   const patchSettings = useCallback((patch: Partial<Settings>) => {
     setSettings((s) => ({ ...s, ...patch }))
   }, [])
+
+  const setReminderKindStatus = useCallback((kind: ReminderKind, status: ReminderStatus) => {
+    setReminderStatus((current) => ({ ...current, [kind]: status }))
+  }, [])
+
+  const setDailyReminderEnabled = useCallback(
+    async (kind: ReminderKind, enabled: boolean) => {
+      const patch: Partial<Settings> =
+        kind === 'watching' ? { watchingReminderEnabled: enabled } : { otherReminderEnabled: enabled }
+      if (!enabled) {
+        patchSettings(patch)
+        setReminderKindStatus(kind, 'idle')
+        return
+      }
+      // 富提醒窗口无需系统通知授权；网页端仍需浏览器通知权限。
+      if (isNativeApp()) {
+        patchSettings(patch)
+        setReminderKindStatus(kind, 'enabled')
+        return
+      }
+      try {
+        const access = await requestNotificationAccess()
+        if (access === 'granted') patchSettings(patch)
+        setReminderKindStatus(kind, access === 'granted' ? 'enabled' : access)
+      } catch {
+        setReminderKindStatus(kind, 'failed')
+      }
+    },
+    [patchSettings, setReminderKindStatus],
+  )
+
+  const testDailyReminder = useCallback(
+    async (kind: ReminderKind) => {
+      if (!liveReminderShows) {
+        setReminderKindStatus(kind, 'failed')
+        return
+      }
+      try {
+        const payload = buildRichReminderPayload(liveReminderShows, tracking, settings, Date.now(), kind)
+        const access = await deliverReminder(payload, true)
+        setReminderKindStatus(kind, access === 'granted' ? 'sent' : access)
+      } catch {
+        setReminderKindStatus(kind, 'failed')
+      }
+    },
+    [liveReminderShows, settings, setReminderKindStatus, tracking],
+  )
+
+  useEffect(() => {
+    if (!liveReminderShows) return
+    const dueKinds = REMINDER_KINDS.filter(
+      (kind) =>
+        !reminderSending.current.has(kind) &&
+        isDailyReminderDue(now, settings, kind, readLastReminderDay(kind)),
+    )
+    if (!dueKinds.length) return
+
+    let alive = true
+    dueKinds.forEach((kind) => reminderSending.current.add(kind))
+    ;(async () => {
+      const day = reminderDayKey(now, settings)
+      for (const kind of dueKinds) {
+        try {
+          const payload = buildRichReminderPayload(liveReminderShows, tracking, settings, now, kind)
+          // 没有符合条件的更新时安静地记为完成，避免每天弹空卡片。
+          if (payload.items.length) {
+            const access = await deliverReminder(payload, false)
+            if (access !== 'granted') {
+              if (alive) setReminderKindStatus(kind, access)
+              markReminderDelivered(kind, day)
+              continue
+            }
+            if (alive) setReminderKindStatus(kind, 'sent')
+          }
+          markReminderDelivered(kind, day)
+        } catch {
+          if (alive) setReminderKindStatus(kind, 'failed')
+          markReminderDelivered(kind, day)
+        } finally {
+          reminderSending.current.delete(kind)
+        }
+      }
+    })()
+    return () => {
+      alive = false
+    }
+  }, [liveReminderShows, now, settings, setReminderKindStatus, tracking])
 
   const exportIcs = useCallback(() => {
     if (effShows) downloadIcs(buildIcs(effShows, tracking, Date.now()))
@@ -1043,11 +1178,14 @@ export default function App() {
           sync={syncState}
           scheduleDataAt={scheduleDataAt}
           oauth={oauthConf}
+          reminderStatus={reminderStatus}
           onOauthLogin={oauthLogin}
           onLogin={bgmLogin}
           onLogout={bgmLogout}
           onSyncNow={() => doSync(true)}
           onChange={patchSettings}
+          onReminderEnabled={setDailyReminderEnabled}
+          onTestReminder={testDailyReminder}
           onExportIcs={exportIcs}
           onClose={() => setShowSettings(false)}
         />

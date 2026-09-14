@@ -52,6 +52,10 @@ export const DEFAULT_SETTINGS: Settings = {
   lang: detectLang(),
   tzMode: 'local',
   lateNightCutoff: 2, // 默认凌晨 2:00 前归前日(表记到 25:59)
+  watchingReminderEnabled: false,
+  watchingReminderTime: '20:00',
+  otherReminderEnabled: false,
+  otherReminderTime: '20:00',
   weekStart: 1,
   friends: [],
   panelOpen: true,
@@ -71,6 +75,21 @@ export function loadPersisted(): Persisted {
       if ('lateNight' in settings && !('lateNightCutoff' in (p.settings ?? {}))) {
         settings.lateNightCutoff = (settings as Record<string, unknown>).lateNight ? 2 : 0
       }
+      const old = p.settings ?? {}
+      // 0.2 版只有一个总提醒:升级后同一时间拆到“在看”与“未在看”两组。
+      if ('dailyReminderEnabled' in old && !('watchingReminderEnabled' in old)) {
+        settings.watchingReminderEnabled = !!old.dailyReminderEnabled
+        settings.otherReminderEnabled = !!old.dailyReminderEnabled
+      }
+      if (typeof old.dailyReminderTime === 'string' && !('watchingReminderTime' in old)) {
+        settings.watchingReminderTime = old.dailyReminderTime
+        settings.otherReminderTime = old.dailyReminderTime
+      }
+      for (const key of ['watchingReminderTime', 'otherReminderTime'] as const) {
+        if (!/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(settings[key])) settings[key] = DEFAULT_SETTINGS[key]
+      }
+      delete (settings as Record<string, unknown>).dailyReminderEnabled
+      delete (settings as Record<string, unknown>).dailyReminderTime
       delete (settings as Record<string, unknown>).lateNight
       return {
         settings,

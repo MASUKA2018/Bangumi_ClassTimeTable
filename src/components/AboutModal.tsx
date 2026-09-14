@@ -11,6 +11,15 @@ interface LogEntry {
 
 const CHANGELOG: LogEntry[] = [
   {
+    d: '2026-09-14',
+    x: {
+      'zh-Hans': 'Windows beta 0.3.0:在看/未在看提醒可分别定时;右下角主题卡片展示封面、标题、放送时间与集数;关闭或最小化后驻留托盘',
+      'zh-Hant': 'Windows beta 0.3.0:在看/未在看提醒可分別定時;右下角主題卡片展示封面、標題、放送時間與集數;關閉或最小化後常駐系統匣',
+      ja: 'Windows beta 0.3.0:視聴中/その他の通知を個別設定。右下カードに表紙・題名・放送時刻・話数を表示。閉じる/最小化後もトレイに常駐',
+      en: 'Windows beta 0.3.0: separate Watching/other reminder schedules; rich bottom-right cards; close or minimize to keep running in the system tray',
+    },
+  },
+  {
     d: '2026-08-05',
     x: {
       'zh-Hans': '修复:办过提前先行首映的新番(盗掘王)课表格位被首映时刻带偏,现按近五周实播定位;www.bgmtimetable.com 跳转主域名;GitHub Pages 镜像随每日数据自动更新',

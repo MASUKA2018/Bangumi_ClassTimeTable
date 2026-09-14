@@ -1,0 +1,78 @@
+name: Windows Client
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/windows-client.yml"
+      - "public/**"
+      - "src/**"
+      - "src-tauri/**"
+      - "index.html"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.json"
+      - "vite.config.ts"
+  pull_request:
+    paths:
+      - ".github/workflows/windows-client.yml"
+      - "public/**"
+      - "src/**"
+      - "src-tauri/**"
+      - "index.html"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.json"
+      - "vite.config.ts"
+
+concurrency:
+  group: windows-client-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build Windows x64 installers
+    runs-on: windows-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust build output
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Verify frontend production build
+        run: npm run build
+
+      - name: Build NSIS and MSI packages
+        run: npm run desktop:build -- --bundles nsis,msi
+
+      - name: Upload Windows packages
+        uses: actions/upload-artifact@v7
+        with:
+          name: bangumi-class-timetable-windows-x64
+          if-no-files-found: error
+          retention-days: 14
+          path: |
+            src-tauri/target/release/bangumi-timetable-app.exe
+            src-tauri/target/release/bundle/nsis/*-setup.exe
+            src-tauri/target/release/bundle/msi/*.msi
