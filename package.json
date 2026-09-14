@@ -1,23 +1,33 @@
 {
-  "name": "bangumi-timetable",
+  "name": "bangumi-timetable-app",
   "private": true,
-  "version": "1.0.2",
+  "version": "0.1.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "deploy": "npm run build && npx wrangler deploy"
+    "deploy": "npm run build && npx wrangler deploy",
+    "desktop": "tauri dev",
+    "desktop:build": "tauri build",
+    "desktop:icon": "tauri icon public/icon-512.png",
+    "android:init": "tauri android init",
+    "android": "tauri android dev",
+    "android:build": "tauri android build"
   },
   "dependencies": {
+    "@tauri-apps/api": "^2.11.1",
+    "@tauri-apps/plugin-http": "^2.6.0",
+    "@tauri-apps/plugin-opener": "^2.5.5",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },
   "devDependencies": {
+    "@tauri-apps/cli": "^2.11.4",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
-    "@vitejs/plugin-react": "^4.3.4",
+    "@vitejs/plugin-react": "^6.1.1",
     "typescript": "~5.6.3",
-    "vite": "^5.4.11"
+    "vite": "^8.3.0"
   }
 }

@@ -132,6 +132,7 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--text);
+  overscroll-behavior: none;
   font: 12px/1.6 tahoma, 'Hiragino Sans GB', 'PingFang SC', 'Microsoft YaHei', 'Helvetica Neue', sans-serif;
 }
 
@@ -771,6 +772,7 @@ a.iconbtn:hover { color: var(--pink-strong); text-decoration: none; }
 }
 .set-sub { color: var(--text-subtle); font-size: 11px; line-height: 1.7; margin: 2px 0 8px 82px; }
 .set-sub.err { color: var(--red); }
+.data-updated { color: var(--text-subtle); font-size: 11px; }
 .bgm-acc { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .bgm-acc img { width: 22px; height: 22px; border-radius: 50%; }
 .bgm-acc .dim { color: var(--text-subtle); }
@@ -780,9 +782,27 @@ a.iconbtn:hover { color: var(--pink-strong); text-decoration: none; }
 /* ── 移动端 ───────────────────────────────────── */
 
 @media (max-width: 720px) {
-  .container { padding: 10px 10px 40px; }
+  .container {
+    padding:
+      calc(8px + env(safe-area-inset-top))
+      calc(8px + env(safe-area-inset-right))
+      calc(12px + env(safe-area-inset-bottom))
+      calc(8px + env(safe-area-inset-left));
+  }
+  .site-header { gap: 8px; padding-bottom: 8px; margin-bottom: 8px; }
   .site-header h1 { font-size: 18px; }
-  .search { width: 120px; }
+  .site-header .domains, .site-header .stats { display: none; }
+  .site-header .spacer { display: none; }
+  .site-header .theme-sel, .site-header .lang-sel { display: none; }
+  .season-sel { margin-left: 6px; max-width: 142px; }
+  .toolbar { gap: 6px; margin-bottom: 8px; }
+  .toolbar > .spacer { display: none; }
+  .search { width: min(150px, 42vw); }
+  .iconbtn, .chip, .seg button { min-height: 36px; padding-top: 6px; padding-bottom: 6px; }
+  .view-area { padding-bottom: calc(20px + env(safe-area-inset-bottom)); overscroll-behavior: contain; }
+  .month-nav { position: sticky; left: 0; min-width: min(100%, 360px); }
+  .modal { width: calc(100vw - 16px); max-height: calc(100dvh - 16px); padding: 18px 14px; }
+  .overlay { padding: 8px; }
   .set-sub { margin-left: 0; }
   .mg-cell { min-height: 64px; }
   .mg-entry .nm { max-width: 100%; }

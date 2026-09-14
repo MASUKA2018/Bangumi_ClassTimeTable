@@ -100,11 +100,13 @@ export default function App() {
   const [overrides, setOverrides] = useState<Record<number, AirFix>>(init.current.overrides)
 
   const [shows, setShows] = useState<Show[] | null>(null)
+  const [scheduleDataAt, setScheduleDataAt] = useState<string | undefined>()
   const [loadError, setLoadError] = useState<string | null>(null)
   const [seasonSel, setSeasonSel] = useState<string>('live') // 'live' 或归档季 YYYYMM
   const [seasonList, setSeasonList] = useState<string[]>([])
   const [packs, setPacks] = useState<Record<string, Show[]>>({})
-  const [view, setView] = useState<View>('week')
+  // 窄屏默认日视图，避免手机首次打开就面对需要横向滚动的七列周课表。
+  const [view, setView] = useState<View>(() => (window.matchMedia('(max-width: 720px)').matches ? 'day' : 'week'))
   const [filter, setFilter] = useState<Filter>('all')
   const [query, setQuery] = useState('')
   // 筛选面板(搜索框左侧):范围多选 / 产地 / 口碑加权分下限 / 来源 / 题材,选择持久化
@@ -294,6 +296,7 @@ export default function App() {
       try {
         const [cal, bd, enh] = await Promise.all([fetchCalendar(), fetchBangumiData(), fetchEnhance()])
         if (!alive) return
+        setScheduleDataAt(enh.syncedAt)
         setShows(buildShows(cal, bd, enh, Date.now()))
       } catch (e) {
         if (alive) setLoadError(e instanceof Error ? e.message : String(e))
@@ -1038,6 +1041,7 @@ export default function App() {
           friendErrors={friendErrors}
           account={account}
           sync={syncState}
+          scheduleDataAt={scheduleDataAt}
           oauth={oauthConf}
           onOauthLogin={oauthLogin}
           onLogin={bgmLogin}

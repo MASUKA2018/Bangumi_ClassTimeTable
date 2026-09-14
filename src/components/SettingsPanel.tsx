@@ -10,6 +10,7 @@ interface Props {
   friendErrors: Record<string, string>
   account: BgmAccount | null
   sync: { msg: string; busy: boolean }
+  scheduleDataAt?: string
   oauth: OauthConf | null
   onOauthLogin: () => void
   onLogin: (token: string) => Promise<void>
@@ -25,6 +26,7 @@ export default function SettingsPanel({
   friendErrors,
   account,
   sync,
+  scheduleDataAt,
   oauth,
   onOauthLogin,
   onLogin,
@@ -285,6 +287,11 @@ export default function SettingsPanel({
           >
             {t('清缓存并刷新')}
           </button>
+          {scheduleDataAt && (
+            <span className="data-updated">
+              {t('逐集时间更新:{time}', { time: new Date(scheduleDataAt).toLocaleString() })}
+            </span>
+          )}
         </div>
 
         <div className="set-note">

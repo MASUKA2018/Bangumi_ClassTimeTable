@@ -4,6 +4,7 @@
  * 礼貌原则:所有响应裁剪后缓存进 localStorage 并带 TTL,
  * 正常使用一天只会真正打到 API 几次,不给 bgm.tv 添负担。
  */
+import { remoteFetch } from './native'
 
 const API = 'https://api.bgm.tv'
 const CACHE_PREFIX = 'btt:cache:'
@@ -50,7 +51,7 @@ export function clearCacheKey(key: string) {
 async function cachedJson<T>(key: string, url: string, ttlMs: number, trim: (raw: any) => T): Promise<T> {
   const hit = readCache<T>(key, ttlMs)
   if (hit !== null) return hit
-  const resp = await fetch(url)
+  const resp = await remoteFetch(url)
   if (!resp.ok) throw new Error(`${url} → HTTP ${resp.status}`)
   const v = trim(await resp.json())
   writeCache(key, v)
@@ -136,7 +137,7 @@ export async function fetchUserWatching(username: string): Promise<FriendCollect
   let offset = 0
   for (let page = 0; page < 3; page++) {
     const url = `${API}/v0/users/${encodeURIComponent(username)}/collections?subject_type=2&type=3&limit=50&offset=${offset}`
-    const resp = await fetch(url)
+    const resp = await remoteFetch(url)
     if (!resp.ok) throw new Error(`用户 ${username}: HTTP ${resp.status}`)
     const data = await resp.json()
     for (const c of data.data ?? []) {

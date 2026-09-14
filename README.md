@@ -3,6 +3,8 @@
 **像课表一样追番。** bangumi.tv 当季新番的日 / 周 / 月三视图课表,带追番进度与
 bgm 账号双向同步。
 
+> 本私有仓库用于开发 Windows / macOS / Android 独立客户端。运行、构建方式见 [CLIENT.md](CLIENT.md)。逐集时间由公开的 [MASUKA2018/Bangumi_ClassTimeTable](https://github.com/MASUKA2018/Bangumi_ClassTimeTable) 数据仓库每日更新。
+
 **👉 正式站点:[bgmtimetable.com](https://bgmtimetable.com/)**
 (可安装为 PWA;GitHub Pages [镜像](https://miint-sunny.github.io/Bangumi_ClassTimeTable/) 同步更新)
 

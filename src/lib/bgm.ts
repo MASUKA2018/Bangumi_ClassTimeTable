@@ -13,6 +13,7 @@
  *  - bgm 的"搁置"课表不建模:按未追显示,本地进度保留
  */
 import type { BgmAccount, CollectMemo, Tracking, WatchStatus } from '../types'
+import { remoteFetch } from './native'
 import { clearCacheKey, readCache, writeCache } from './api'
 
 const API = 'https://api.bgm.tv'
@@ -43,7 +44,7 @@ export function saveAccount(a: BgmAccount | null) {
 export class BgmAuthError extends Error {}
 
 async function authed(token: string, path: string, init?: RequestInit): Promise<Response> {
-  const resp = await fetch(API + path, {
+  const resp = await remoteFetch(API + path, {
     ...init,
     headers: { Authorization: `Bearer ${token}`, ...(init?.headers ?? {}) },
   })

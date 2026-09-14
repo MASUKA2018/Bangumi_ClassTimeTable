@@ -373,6 +373,11 @@ const DICT: Record<string, [string, string, string]> = {
     'データ:Bangumi公式API(6時間キャッシュ)・bangumi-data(jsDelivr CDN・日次キャッシュ)・各話の正確な時刻は',
     'Data: official Bangumi API (6 h cache) · bangumi-data via jsDelivr (daily cache) · per-episode exact times from ',
   ],
+  '逐集时间更新:{time}': [
+    '逐集時間更新:{time}',
+    '各話時刻の更新:{time}',
+    'Episode times updated: {time}',
+  ],
   '(经其开发者 API 每日同步,致谢其编辑者社区)· 可选的 yuc.wiki 增强数据由 AI 辅助的 refresh-data skill 人工触发生成,不做自动抓取。': [
     '(經其開發者 API 每日同步,致謝其編輯者社群)· 可選的 yuc.wiki 增強資料由 AI 輔助的 refresh-data skill 人工觸發生成,不做自動抓取。',
     '(開発者APIで日次同期。編集者コミュニティに感謝)・yuc.wiki拡張データはAI支援のrefresh-dataスキルで手動生成。自動クロールはしません。',
@@ -405,7 +410,7 @@ const DICT: Record<string, [string, string, string]> = {
     'データは Bangumi・bangumi-data・番組維基(bgm.wiki)・yuc.wiki より。各コミュニティに感謝します。',
     'Data from Bangumi, bangumi-data, bgm.wiki and yuc.wiki — thanks to their maintainers.',
   ],
-  '以 MIT 协议开源': ['以 MIT 授權開源', 'MITライセンスで公開', 'Open source under MIT'],
+  '基于 MIT 开源项目': ['基於 MIT 開源專案', 'MITオープンソースプロジェクトを基に開発', 'Based on an MIT open-source project'],
 }
 
 /** 取译文;缺译回落简中。{k} 占位符统一替换。 */

@@ -169,7 +169,7 @@ export default function AboutModal({ onClose }: { onClose: () => void }) {
           <h2>{t('番组课表')}</h2>
           <div className="tagline">{t('像课表一样追番。')}</div>
           <div className="ver">
-            {t('版本 {v}', { v: __APP_VERSION__ })} · bgmtimetable.com · {t('以 MIT 协议开源')}
+            {t('版本 {v}', { v: __APP_VERSION__ })} · bgmtimetable.com · {t('基于 MIT 开源项目')}
           </div>
         </div>
 

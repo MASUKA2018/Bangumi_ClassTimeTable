@@ -2,6 +2,9 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import App from './App'
 import './styles.css'
+import { installNativeAdapters, isNativeApp } from './lib/native'
+
+installNativeAdapters()
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
@@ -10,7 +13,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
 )
 
 // PWA:生产环境注册 Service Worker(静态资源离线缓存;dev 下跳过以免干扰 HMR)
-if (import.meta.env.PROD && 'serviceWorker' in navigator) {
+if (import.meta.env.PROD && !isNativeApp() && 'serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register(`${import.meta.env.BASE_URL}sw.js`).catch(() => {})
   })

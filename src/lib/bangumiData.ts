@@ -5,6 +5,7 @@
  * yuc.wiki 的网页流量。提供:精确放送时刻(begin + broadcast 周期)、
  * 完结时间、播放平台链接。裁剪到近一年窗口后缓存 24 小时。
  */
+import { remoteFetch } from './native'
 
 const CDN_URLS = [
   'https://cdn.jsdelivr.net/npm/bangumi-data/dist/data.json',
@@ -138,7 +139,7 @@ export async function fetchBangumiData(): Promise<BdBundle> {
   let lastErr: unknown = null
   for (const url of CDN_URLS) {
     try {
-      const resp = await fetch(url)
+      const resp = await remoteFetch(url)
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
       const items = trimDataset(await resp.json(), now)
       try {
