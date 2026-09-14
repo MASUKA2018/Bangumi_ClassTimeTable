@@ -1,0 +1,86 @@
+name: macOS Client
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/macos-client.yml"
+      - "public/**"
+      - "src/**"
+      - "src-tauri/**"
+      - "index.html"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.json"
+      - "vite.config.ts"
+  pull_request:
+    paths:
+      - ".github/workflows/macos-client.yml"
+      - "public/**"
+      - "src/**"
+      - "src-tauri/**"
+      - "index.html"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.json"
+      - "vite.config.ts"
+
+concurrency:
+  group: macos-client-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build macOS application
+    runs-on: macos-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust build output
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Test reminder logic
+        run: npm test
+
+      - name: Verify frontend production build
+        run: npm run build
+
+      - name: Build DMG
+        run: npm run desktop:build -- --bundles dmg
+
+      - name: Build application bundle
+        run: npm run desktop:build -- --bundles app
+
+      - name: Archive application bundle
+        run: ditto -c -k --sequesterRsrc --keepParent "src-tauri/target/release/bundle/macos/番组课表.app" "src-tauri/target/release/bundle/macos/bangumi-class-timetable-macos.app.zip"
+
+      - name: Upload macOS packages
+        uses: actions/upload-artifact@v7
+        with:
+          name: bangumi-class-timetable-macos
+          if-no-files-found: error
+          retention-days: 14
+          path: |
+            src-tauri/target/release/bundle/macos/bangumi-class-timetable-macos.app.zip
+            src-tauri/target/release/bundle/dmg/*.dmg

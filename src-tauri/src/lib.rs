@@ -69,10 +69,8 @@ pub fn run() {
                         api.prevent_close();
                         let _ = window.hide();
                     }
-                    tauri::WindowEvent::Resized(_) => {
-                        if window.is_minimized().unwrap_or(false) {
-                            let _ = window.hide();
-                        }
+                    tauri::WindowEvent::Resized(_) if window.is_minimized().unwrap_or(false) => {
+                        let _ = window.hide();
                     }
                     _ => {}
                 }

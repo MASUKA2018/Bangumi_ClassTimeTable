@@ -290,7 +290,7 @@ export default function SettingsPanel({
                       : status === 'sent'
                         ? '提醒已显示'
                         : status === 'denied'
-                          ? '通知权限被拒绝,请在 Windows 设置中允许番组课表发送通知。'
+                          ? '通知权限被拒绝,请在系统设置中允许番组课表发送通知。'
                           : status === 'unsupported'
                             ? '当前环境不支持系统通知。'
                             : '显示提醒失败,请稍后重试。',

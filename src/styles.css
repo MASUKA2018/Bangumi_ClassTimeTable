@@ -782,7 +782,7 @@ a.iconbtn:hover { color: var(--pink-strong); text-decoration: none; }
 .friend-add { align-items: center; flex-wrap: wrap; }
 .friend-add .or { color: var(--text-subtle); font-size: 11px; }
 
-/* ── Windows 右下角富提醒窗口 ─────────────────── */
+/* ── 桌面端右下角富提醒窗口 ───────────────────── */
 
 html[data-reminder='true'],
 html[data-reminder='true'] body,

@@ -8,6 +8,10 @@ const HEIGHT = 300
 const MARGIN = 16
 const GAP = 12
 
+function isMacOS(): boolean {
+  return /Macintosh|Mac OS X/i.test(navigator.userAgent)
+}
+
 function savePayload(payload: RichReminderPayload) {
   localStorage.setItem(reminderPayloadKey(payload.kind), JSON.stringify(payload))
 }
@@ -21,7 +25,7 @@ async function waitUntilCreated(window: import('@tauri-apps/api/webviewWindow').
 
 /**
  * 在主屏工作区右下角显示无边框卡片。两类提醒同时出现时自动上下错开，
- * 不抢当前应用焦点；失败由调用方回落到 Windows 系统通知。
+ * 不抢当前应用焦点；失败由调用方回落到系统通知。
  */
 export async function showRichReminder(payload: RichReminderPayload): Promise<void> {
   savePayload(payload)
@@ -41,6 +45,9 @@ export async function showRichReminder(payload: RichReminderPayload): Promise<vo
   const siblingVisible = sibling ? await sibling.isVisible() : false
   const x = workPosition.x + workSize.width - WIDTH - MARGIN
   const y = workPosition.y + workSize.height - HEIGHT - MARGIN - (siblingVisible ? HEIGHT + GAP : 0)
+  const macOS = isMacOS()
+  const backgroundColor: [number, number, number, number] =
+    macOS ? (payload.theme === 'light' ? [247, 244, 245, 255] : [35, 36, 38, 255]) : [0, 0, 0, 0]
 
   let popup = await WebviewWindow.getByLabel(label)
   if (!popup) {
@@ -52,8 +59,10 @@ export async function showRichReminder(payload: RichReminderPayload): Promise<vo
       height: HEIGHT,
       title: payload.heading,
       decorations: false,
-      transparent: true,
-      backgroundColor: [0, 0, 0, 0],
+      // Transparent webviews require a private macOS API that prevents App Store
+      // distribution. An opaque, theme-matched background keeps the same card layout.
+      transparent: !macOS,
+      backgroundColor,
       alwaysOnTop: true,
       skipTaskbar: true,
       resizable: false,
@@ -61,6 +70,7 @@ export async function showRichReminder(payload: RichReminderPayload): Promise<vo
       minimizable: false,
       focus: false,
       focusable: true,
+      acceptFirstMouse: macOS,
       visible: false,
       shadow: false,
     })

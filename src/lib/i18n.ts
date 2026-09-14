@@ -337,10 +337,10 @@ const DICT: Record<string, [string, string, string]> = {
   ],
   提醒已开启: ['提醒已開啟', '通知をオンにしました', 'Reminder enabled'],
   提醒已显示: ['提醒已顯示', '通知を表示しました', 'Reminder displayed'],
-  '通知权限被拒绝,请在 Windows 设置中允许番组课表发送通知。': [
-    '通知權限被拒絕,請在 Windows 設定中允許番組課表傳送通知。',
-    '通知が拒否されました。Windows の設定で番組時間割の通知を許可してください。',
-    'Notifications are blocked. Allow Bangumi Timetable notifications in Windows Settings.',
+  '通知权限被拒绝,请在系统设置中允许番组课表发送通知。': [
+    '通知權限被拒絕,請在系統設定中允許番組課表傳送通知。',
+    '通知が拒否されました。システム設定で番組時間割の通知を許可してください。',
+    'Notifications are blocked. Allow Bangumi Timetable notifications in system settings.',
   ],
   '当前环境不支持系统通知。': ['目前環境不支援系統通知。', 'この環境はシステム通知に対応していません。', 'System notifications are not supported here.'],
   '显示提醒失败,请稍后重试。': ['顯示提醒失敗,請稍後再試。', '通知を表示できませんでした。後でもう一度お試しください。', 'Could not display the reminder. Try again later.'],
