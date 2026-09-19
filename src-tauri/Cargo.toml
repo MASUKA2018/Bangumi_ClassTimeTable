@@ -1,6 +1,6 @@
 [package]
 name = "bangumi-timetable-app"
-version = "0.3.2"
+version = "0.3.3"
 description = "像课表一样追番的 Windows、macOS 与 Android 客户端"
 authors = ["Bangumi ClassTimetable contributors"]
 edition = "2021"

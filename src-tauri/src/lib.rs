@@ -26,7 +26,14 @@ pub fn run() {
             .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
                 show_main_window(app);
             }))
-            .plugin(tauri_plugin_window_state::Builder::default().build())
+            // Reminder cards calculate their position from the monitor work area every time.
+            // Persisting their state can race with that calculation on Windows and move them
+            // back to a stale/default position near the center of the screen.
+            .plugin(
+                tauri_plugin_window_state::Builder::default()
+                    .with_filter(|label| label == "main")
+                    .build(),
+            )
             .setup(|app| {
                 let show = MenuItemBuilder::with_id("show", "显示主窗口").build(app)?;
                 let quit = MenuItemBuilder::with_id("quit", "退出").build(app)?;

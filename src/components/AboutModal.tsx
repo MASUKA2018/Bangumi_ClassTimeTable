@@ -11,6 +11,15 @@ interface LogEntry {
 
 const CHANGELOG: LogEntry[] = [
   {
+    d: '2026-09-20',
+    x: {
+      'zh-Hans': '桌面端 beta 0.3.3:修复 Windows 提醒卡片被窗口状态恢复与显示缩放影响、错误出现在屏幕中部的问题；现在始终按任务栏工作区定位到右下角',
+      'zh-Hant': '桌面端 beta 0.3.3:修復 Windows 提醒卡片受視窗狀態還原與顯示縮放影響、錯誤出現在螢幕中部的問題；現在固定依工作列區域定位於右下角',
+      ja: 'デスクトップ beta 0.3.3:Windows のウィンドウ状態復元と表示倍率により通知カードが画面中央に出る問題を修正。タスクバーを除く領域の右下に固定',
+      en: 'Desktop beta 0.3.3: fixes Windows reminder cards appearing near the center because of restored window state and display scaling; cards now anchor to the work area bottom-right',
+    },
+  },
+  {
     d: '2026-09-15',
     x: {
       'zh-Hans': '桌面端 beta 0.3.2:修复当季实时日历返回 HTTP 封面，导致安装版拦截图片并显示“番”字的问题；旧缓存也会自动转换为 HTTPS',

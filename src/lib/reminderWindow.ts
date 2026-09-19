@@ -8,6 +8,23 @@ const HEIGHT = 300
 const MARGIN = 16
 const GAP = 12
 
+interface PhysicalWorkArea {
+  position: { x: number; y: number }
+  size: { width: number; height: number }
+}
+
+/** 用物理像素定位，避免 Windows 显示缩放导致逻辑坐标落到屏幕中部。 */
+export function reminderPhysicalPosition(workArea: PhysicalWorkArea, scaleFactor: number, siblingVisible: boolean) {
+  const width = Math.round(WIDTH * scaleFactor)
+  const height = Math.round(HEIGHT * scaleFactor)
+  const margin = Math.round(MARGIN * scaleFactor)
+  const siblingOffset = siblingVisible ? Math.round((HEIGHT + GAP) * scaleFactor) : 0
+  return {
+    x: workArea.position.x + workArea.size.width - width - margin,
+    y: workArea.position.y + workArea.size.height - height - margin - siblingOffset,
+  }
+}
+
 function isMacOS(): boolean {
   return /Macintosh|Mac OS X/i.test(navigator.userAgent)
 }
@@ -29,7 +46,7 @@ async function waitUntilCreated(window: import('@tauri-apps/api/webviewWindow').
  */
 export async function showRichReminder(payload: RichReminderPayload): Promise<void> {
   savePayload(payload)
-  const [{ WebviewWindow }, { emitTo }, { primaryMonitor, LogicalPosition }] = await Promise.all([
+  const [{ WebviewWindow }, { emitTo }, { primaryMonitor, PhysicalPosition }] = await Promise.all([
     import('@tauri-apps/api/webviewWindow'),
     import('@tauri-apps/api/event'),
     import('@tauri-apps/api/window'),
@@ -39,12 +56,11 @@ export async function showRichReminder(payload: RichReminderPayload): Promise<vo
   const monitor = await primaryMonitor()
   if (!monitor) throw new Error('primary monitor unavailable')
 
-  const workPosition = monitor.workArea.position.toLogical(monitor.scaleFactor)
-  const workSize = monitor.workArea.size.toLogical(monitor.scaleFactor)
   const sibling = await WebviewWindow.getByLabel(siblingLabel)
   const siblingVisible = sibling ? await sibling.isVisible() : false
-  const x = workPosition.x + workSize.width - WIDTH - MARGIN
-  const y = workPosition.y + workSize.height - HEIGHT - MARGIN - (siblingVisible ? HEIGHT + GAP : 0)
+  const physicalPosition = reminderPhysicalPosition(monitor.workArea, monitor.scaleFactor, siblingVisible)
+  const position = new PhysicalPosition(physicalPosition.x, physicalPosition.y)
+  const logicalPosition = position.toLogical(monitor.scaleFactor)
   const macOS = isMacOS()
   const backgroundColor: [number, number, number, number] =
     macOS ? (payload.theme === 'light' ? [247, 244, 245, 255] : [35, 36, 38, 255]) : [0, 0, 0, 0]
@@ -53,8 +69,8 @@ export async function showRichReminder(payload: RichReminderPayload): Promise<vo
   if (!popup) {
     popup = new WebviewWindow(label, {
       url: `index.html?reminder=${payload.kind}`,
-      x,
-      y,
+      x: logicalPosition.x,
+      y: logicalPosition.y,
       width: WIDTH,
       height: HEIGHT,
       title: payload.heading,
@@ -75,9 +91,10 @@ export async function showRichReminder(payload: RichReminderPayload): Promise<vo
       shadow: false,
     })
     await waitUntilCreated(popup)
-  } else {
-    await popup.setPosition(new LogicalPosition(x, y))
   }
+  // Windows 创建 WebView 窗口时，系统或状态恢复插件可能覆盖初始坐标。
+  // 窗口创建完成后每次都重新定位，确保落在任务栏工作区右下角。
+  await popup.setPosition(position)
   await emitTo(label, RICH_REMINDER_EVENT, payload)
   await popup.show()
 }
