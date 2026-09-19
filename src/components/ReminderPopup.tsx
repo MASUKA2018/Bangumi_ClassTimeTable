@@ -78,44 +78,46 @@ export default function ReminderPopup({ kind }: { kind: ReminderKind }) {
   document.documentElement.setAttribute('data-theme', payload.theme)
   document.documentElement.dataset.reminder = 'true'
   return (
-    <main className={`reminder-popup ${payload.kind}`}>
-      <button className="reminder-close" onClick={hidePopup} aria-label={t('关闭')}>
-        ×
-      </button>
-      <header className="reminder-heading">
-        <span className="reminder-kind">{payload.kind === 'watching' ? '▶' : '✦'}</span>
-        {payload.heading}
-        {payload.items.length > 0 && <span className="reminder-count">{index + 1} / {payload.items.length}</span>}
-      </header>
-      {item ? (
-        <section className="reminder-card">
-          <div className="reminder-cover-wrap">
-            {item.cover && !imageFailed ? (
-              <img className="reminder-cover" src={item.cover} alt="" onError={() => setImageFailed(true)} />
-            ) : (
-              <div className="reminder-cover placeholder">番组<br />课表</div>
-            )}
-          </div>
-          <div className="reminder-copy">
-            <h1>{item.title}</h1>
-            <div className="reminder-meta">
-              <span><b>{item.airTime}</b><small>{t('当天放送时间')}</small></span>
-              <i />
-              <span><b>{item.episode}</b><small>{t('更新进度')}</small></span>
+    <div className="reminder-viewport">
+      <main className={`reminder-popup ${payload.kind}`}>
+        <button className="reminder-close" onClick={hidePopup} aria-label={t('关闭')}>
+          ×
+        </button>
+        <header className="reminder-heading">
+          <span className="reminder-kind">{payload.kind === 'watching' ? '▶' : '✦'}</span>
+          {payload.heading}
+          {payload.items.length > 0 && <span className="reminder-count">{index + 1} / {payload.items.length}</span>}
+        </header>
+        {item ? (
+          <section className="reminder-card">
+            <div className="reminder-cover-wrap">
+              {item.cover && !imageFailed ? (
+                <img className="reminder-cover" src={item.cover} alt="" onError={() => setImageFailed(true)} />
+              ) : (
+                <div className="reminder-cover placeholder">番组<br />课表</div>
+              )}
             </div>
-            <p>{t(payload.kind === 'watching' ? '今天的“在看”番剧已加入课表,记得准时收看。' : '今天还有这些尚未标记“在看”的番剧更新。')}</p>
-            {payload.items.length > 1 && (
-              <nav className="reminder-nav" aria-label={t('切换番剧')}>
-                <button onClick={() => setIndex((index - 1 + payload.items.length) % payload.items.length)}>‹ {t('上一部')}</button>
-                <span>{payload.items.map((x, i) => <i key={x.id} className={i === index ? 'on' : ''} />)}</span>
-                <button onClick={() => setIndex((index + 1) % payload.items.length)}>{t('下一部')} ›</button>
-              </nav>
-            )}
-          </div>
-        </section>
-      ) : (
-        <div className="reminder-empty">{payload.emptyText}</div>
-      )}
-    </main>
+            <div className="reminder-copy">
+              <h1>{item.title}</h1>
+              <div className="reminder-meta">
+                <span><b>{item.airTime}</b><small>{t('当天放送时间')}</small></span>
+                <i />
+                <span><b>{item.episode}</b><small>{t('更新进度')}</small></span>
+              </div>
+              <p>{t(payload.kind === 'watching' ? '今天的“在看”番剧已加入课表,记得准时收看。' : '今天还有这些尚未标记“在看”的番剧更新。')}</p>
+              {payload.items.length > 1 && (
+                <nav className="reminder-nav" aria-label={t('切换番剧')}>
+                  <button onClick={() => setIndex((index - 1 + payload.items.length) % payload.items.length)}>‹ {t('上一部')}</button>
+                  <span>{payload.items.map((x, i) => <i key={x.id} className={i === index ? 'on' : ''} />)}</span>
+                  <button onClick={() => setIndex((index + 1) % payload.items.length)}>{t('下一部')} ›</button>
+                </nav>
+              )}
+            </div>
+          </section>
+        ) : (
+          <div className="reminder-empty">{payload.emptyText}</div>
+        )}
+      </main>
+    </div>
   )
 }

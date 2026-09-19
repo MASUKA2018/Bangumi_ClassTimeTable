@@ -13,6 +13,15 @@ const CHANGELOG: LogEntry[] = [
   {
     d: '2026-09-20',
     x: {
+      'zh-Hans': '桌面端 beta 0.3.4:提醒窗口调整为原尺寸的 75%，封面、标题、时间、进度与切换按钮保持完整并等比缩放',
+      'zh-Hant': '桌面端 beta 0.3.4:提醒視窗調整為原尺寸的 75%，封面、標題、時間、進度與切換按鈕保持完整並等比縮放',
+      ja: 'デスクトップ beta 0.3.4:通知ウィンドウを元の 75% に調整。表紙・題名・時刻・進捗・切替ボタンはそのまま等比縮小',
+      en: 'Desktop beta 0.3.4: resizes the reminder window to 75% while preserving and proportionally scaling all cover, title, time, progress, and navigation content',
+    },
+  },
+  {
+    d: '2026-09-20',
+    x: {
       'zh-Hans': '桌面端 beta 0.3.3:修复 Windows 提醒卡片被窗口状态恢复与显示缩放影响、错误出现在屏幕中部的问题；现在始终按任务栏工作区定位到右下角',
       'zh-Hant': '桌面端 beta 0.3.3:修復 Windows 提醒卡片受視窗狀態還原與顯示縮放影響、錯誤出現在螢幕中部的問題；現在固定依工作列區域定位於右下角',
       ja: 'デスクトップ beta 0.3.3:Windows のウィンドウ状態復元と表示倍率により通知カードが画面中央に出る問題を修正。タスクバーを除く領域の右下に固定',

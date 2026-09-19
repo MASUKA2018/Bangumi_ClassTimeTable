@@ -790,6 +790,11 @@ html[data-reminder='true'] #root {
   background: transparent !important;
   overflow: hidden;
 }
+.reminder-viewport {
+  position: absolute; left: 0; top: 0;
+  width: 720px; height: 300px;
+  transform: scale(.75); transform-origin: top left;
+}
 .reminder-popup {
   position: absolute; inset: 8px;
   padding: 14px 18px 16px;

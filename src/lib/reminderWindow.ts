@@ -3,8 +3,9 @@ import type { RichReminderPayload, ReminderKind } from './notifications'
 export const RICH_REMINDER_EVENT = 'btt-rich-reminder'
 export const reminderPayloadKey = (kind: ReminderKind) => `btt:rich-reminder:${kind}:v1`
 
-const WIDTH = 720
-const HEIGHT = 300
+// 内容仍按 720×300 排版，由 ReminderPopup 整体缩放到 75%。
+const WIDTH = 540
+const HEIGHT = 225
 const MARGIN = 16
 const GAP = 12
 
