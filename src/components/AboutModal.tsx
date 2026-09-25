@@ -11,6 +11,15 @@ interface LogEntry {
 
 const CHANGELOG: LogEntry[] = [
   {
+    d: '2026-09-24',
+    x: {
+      'zh-Hans': '桌面端 beta 0.3.5:修复 Windows 宽窗口仍被限制在 1440px、课表无谓出现横向滚动条的问题；窗口拉大时课表列距自动扩展，窄窗口自动收窄或改用弹窗侧栏',
+      'zh-Hant': '桌面端 beta 0.3.5:修復 Windows 寬視窗仍被限制在 1440px、課表無謂出現橫向捲軸的問題；視窗拉大時課表欄距自動延展，窄視窗自動收窄或改用彈窗側欄',
+      ja: 'デスクトップ beta 0.3.5:Windows の広いウィンドウでも 1440px に制限され横スクロールが出る問題を修正。拡大時は列間隔を自動調整し、狭い時はサイドバーを縮小またはモーダル表示',
+      en: 'Desktop beta 0.3.5: removes the 1440px cap that caused needless horizontal scrolling on wide Windows layouts; timetable columns now expand with the window and the sidebar adapts on narrower sizes',
+    },
+  },
+  {
     d: '2026-09-20',
     x: {
       'zh-Hans': '桌面端 beta 0.3.4:提醒窗口调整为原尺寸的 75%，封面、标题、时间、进度与切换按钮保持完整并等比缩放',

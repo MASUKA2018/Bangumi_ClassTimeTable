@@ -52,7 +52,9 @@ import SettingsPanel from './components/SettingsPanel'
 
 /** 视口宽度足够时,详情走右侧常驻面板而非弹窗 */
 function useWideLayout(): boolean {
-  const query = '(min-width: 1000px)'
+  // 低于 1240px 时侧栏即使压到最窄也会挤出横向滚动条，改走详情弹窗。
+  // 更宽时由 CSS 自动限制侧栏宽度，优先给七列课表留出完整空间。
+  const query = '(min-width: 1240px)'
   const [wide, setWide] = useState(() => window.matchMedia(query).matches)
   useEffect(() => {
     const mq = window.matchMedia(query)
@@ -1091,7 +1093,7 @@ export default function App() {
           {archive ? t('正在加载 {s} 归档…', { s: fmtSeason(seasonSel) }) : t('正在拉取本季放送表…')}
         </div>
       ) : (
-        <div className="content-row">
+        <div className={`content-row view-${effView}`}>
           <div className="view-area">
             {effView === 'week' && (
               <WeekView

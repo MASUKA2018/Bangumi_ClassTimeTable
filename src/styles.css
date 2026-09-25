@@ -142,12 +142,50 @@ button { font: inherit; cursor: pointer; }
 
 /* 顶栏与工具条固定,内容区自己滚动 —— 表头跟着浏览走 */
 .container {
-  max-width: 1440px; margin: 0 auto; padding: 12px 18px 0;
+  width: 100%; max-width: 1440px; margin: 0 auto; padding: 12px 18px 0;
   height: 100dvh; display: flex; flex-direction: column; overflow: hidden;
   animation: fade-in 0.3s ease; /* 仅首次加载淡入;容器不会因切视图重挂载 */
 }
-.content-row { flex: 1 1 auto; min-height: 0; display: flex; gap: 14px; }
+.content-row { flex: 1 1 auto; min-height: 0; display: flex; gap: clamp(10px, 1vw, 18px); }
 .view-area { flex: 1 1 auto; min-width: 0; min-height: 0; overflow: auto; padding-bottom: 40px; }
+
+/* 浏览器版维持原来的阅读宽度；Windows/macOS 原生端在用户拉宽窗口时
+   一起扩展到更宽的工作区。2560px 覆盖常见 2K/高 DPI 桌面，同时避免
+   真正的超宽屏把七列无限拉散。 */
+@media (min-width: 1441px) {
+  html[data-native='true'] .container {
+    max-width: 2560px;
+    padding-inline: clamp(18px, 1.6vw, 30px);
+  }
+}
+
+/* Windows WebView2 的传统滚动条会永久占据约 17px，并带上下箭头；
+   仅在 Windows 原生端缩窄它。macOS 保留系统覆盖式滚动条。 */
+html[data-native='true'][data-platform='windows'] .view-area,
+html[data-native='true'][data-platform='windows'] .side-panel {
+  scrollbar-width: thin;
+  scrollbar-color: var(--text-subtle) transparent;
+}
+html[data-native='true'][data-platform='windows'] .view-area::-webkit-scrollbar,
+html[data-native='true'][data-platform='windows'] .side-panel::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+html[data-native='true'][data-platform='windows'] .view-area::-webkit-scrollbar-track,
+html[data-native='true'][data-platform='windows'] .side-panel::-webkit-scrollbar-track {
+  background: transparent;
+}
+html[data-native='true'][data-platform='windows'] .view-area::-webkit-scrollbar-thumb,
+html[data-native='true'][data-platform='windows'] .side-panel::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--text-subtle) 72%, transparent);
+  border-radius: 999px;
+}
+html[data-native='true'][data-platform='windows'] .view-area::-webkit-scrollbar-button,
+html[data-native='true'][data-platform='windows'] .side-panel::-webkit-scrollbar-button {
+  display: none;
+  width: 0;
+  height: 0;
+}
 /* 视图/翻页/换季切换:View Transitions API 交叉淡化(见 lib/anim.ts)——
    旧画面淡出与新画面淡入同帧进行,没有"先替换再补淡入"的暗坑,不会闪。 */
 ::view-transition-old(root),
@@ -179,11 +217,14 @@ button { font: inherit; cursor: pointer; }
 /* ── 右侧常驻面板:详情 / 追番速览 ─────────────── */
 
 .side-panel {
-  flex-shrink: 0; min-height: 0; overflow-y: auto;
+  flex-shrink: 0; min-width: 240px; min-height: 0; overflow-x: hidden; overflow-y: auto;
   background: var(--card); border: 1px solid var(--border); border-radius: 15px;
   padding: 16px 16px 16px 20px; margin-bottom: 12px; position: relative;
   container: panel / size; /* 高度来自 flex 拉伸(定高),清单限高用 cqh 取面板百分比 */
 }
+/* 周视图优先保证 892px 网格 + Windows 细滚动条的空间；用户曾拖宽的
+   侧栏在小窗口自动收窄，窗口再次拉大后会恢复到保存宽度。 */
+.content-row.view-week .side-panel { max-width: calc(100% - 916px); }
 .side-panel.will-collapse { opacity: .45; border-style: dashed; }
 .panel-grip {
   position: sticky; top: 0; float: left; margin-left: -16px; z-index: 20;
@@ -398,7 +439,9 @@ a.iconbtn:hover { color: var(--pink-strong); text-decoration: none; }
 .week-grid {
   display: grid;
   grid-template-columns: 52px repeat(7, minmax(120px, 1fr));
-  min-width: 940px;
+  /* 52 + 7×120 = 892；旧的 940px 多留了 48px，恰好会在 Windows
+     占位式纵向滚动条出现后制造一条没有实际用途的横向滚动条。 */
+  min-width: 892px;
   border-left: 1px solid var(--border);
 }
 .wg-corner, .wg-dayhead, .wg-time, .wg-cell, .wg-now-time, .wg-now {
