@@ -1,10 +1,11 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { BgmAccount, Settings } from '../types'
 import { clearApiCache } from '../lib/api'
 import { t, wdFull } from '../lib/i18n'
 import { loadPersisted } from '../lib/store'
 import type { OauthConf } from '../lib/oauth'
 import type { ReminderKind, ReminderStatus } from '../lib/notifications'
+import { getAutostartEnabled, setAutostartEnabled, supportsAutostart } from '../lib/autostart'
 
 interface Props {
   settings: Settings
@@ -48,6 +49,38 @@ export default function SettingsPanel({
   const [token, setToken] = useState('')
   const [verifying, setVerifying] = useState(false)
   const [loginErr, setLoginErr] = useState('')
+  const autostartSupported = supportsAutostart()
+  const [autostartEnabled, setAutostartState] = useState<boolean | null>(null)
+  const [autostartBusy, setAutostartBusy] = useState(false)
+  const [autostartError, setAutostartError] = useState(false)
+
+  useEffect(() => {
+    if (!autostartSupported) return
+    let active = true
+    getAutostartEnabled()
+      .then((enabled) => {
+        if (active) setAutostartState(enabled)
+      })
+      .catch(() => {
+        if (active) setAutostartError(true)
+      })
+    return () => {
+      active = false
+    }
+  }, [autostartSupported])
+
+  const changeAutostart = async (enabled: boolean) => {
+    if (autostartBusy || autostartEnabled === enabled) return
+    setAutostartBusy(true)
+    setAutostartError(false)
+    try {
+      setAutostartState(await setAutostartEnabled(enabled))
+    } catch {
+      setAutostartError(true)
+    } finally {
+      setAutostartBusy(false)
+    }
+  }
 
   const addFriend = () => {
     const n = name.trim()
@@ -186,6 +219,37 @@ export default function SettingsPanel({
             ))}
           </span>
         </div>
+
+        {autostartSupported && (
+          <div className="autostart-setting">
+            <div className="set-row">
+              <span className="lbl">{t('开机启动')}</span>
+              <span className="seg small">
+                <button
+                  className={autostartEnabled === true ? 'on' : ''}
+                  disabled={autostartBusy || (autostartEnabled === null && !autostartError)}
+                  onClick={() => changeAutostart(true)}
+                >
+                  {t('自动启动')}
+                </button>
+                <button
+                  className={autostartEnabled === false ? 'on' : ''}
+                  disabled={autostartBusy || (autostartEnabled === null && !autostartError)}
+                  onClick={() => changeAutostart(false)}
+                >
+                  {t('不自动启动')}
+                </button>
+              </span>
+              {autostartEnabled === null && !autostartError && <span className="data-updated">{t('正在读取…')}</span>}
+            </div>
+            <div className="set-sub">{t('登录系统后静默启动并驻留托盘，按设置继续发送提醒。')}</div>
+            {autostartError && (
+              <div className="set-sub err" role="status" aria-live="polite">
+                {t('无法读取或修改开机启动设置，请稍后重试。')}
+              </div>
+            )}
+          </div>
+        )}
 
         <div className="set-row">
           <span className="lbl">{t('周起始')}</span>

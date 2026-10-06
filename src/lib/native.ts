@@ -10,12 +10,20 @@ export function isNativeApp(): boolean {
   return typeof window !== 'undefined' && window.__TAURI_INTERNALS__ !== undefined
 }
 
-function nativePlatform(): 'windows' | 'macos' | 'linux' | 'other' {
+export type NativePlatform = 'windows' | 'macos' | 'linux' | 'other'
+
+export function nativePlatform(): NativePlatform {
+  if (typeof navigator === 'undefined') return 'other'
   const ua = navigator.userAgent
+  if (/Android|iPhone|iPad|iPod/i.test(ua)) return 'other'
   if (/Windows/i.test(ua)) return 'windows'
   if (/Macintosh|Mac OS X/i.test(ua)) return 'macos'
   if (/Linux/i.test(ua)) return 'linux'
   return 'other'
+}
+
+export function isDesktopNativeApp(): boolean {
+  return isNativeApp() && nativePlatform() !== 'other'
 }
 
 /**

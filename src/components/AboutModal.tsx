@@ -11,6 +11,15 @@ interface LogEntry {
 
 const CHANGELOG: LogEntry[] = [
   {
+    d: '2026-10-06',
+    x: {
+      'zh-Hans': '桌面端 beta 0.3.6:设置新增开机自动启动；系统登录后可静默进入托盘，按设定时间继续发送番剧提醒',
+      'zh-Hant': '桌面端 beta 0.3.6:設定新增開機自動啟動；登入系統後可靜默進入系統匣，依設定時間繼續傳送番劇提醒',
+      ja: 'デスクトップ beta 0.3.6:自動起動設定を追加。OSログイン後はバックグラウンドでトレイに常駐し、設定時刻に通知を継続',
+      en: 'Desktop beta 0.3.6: adds launch-at-startup; after sign-in the app can start silently in the tray and keep scheduled reminders running',
+    },
+  },
+  {
     d: '2026-09-24',
     x: {
       'zh-Hans': '桌面端 beta 0.3.5:修复 Windows 宽窗口仍被限制在 1440px、课表无谓出现横向滚动条的问题；窗口拉大时课表列距自动扩展，窄窗口自动收窄或改用弹窗侧栏',

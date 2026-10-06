@@ -760,6 +760,7 @@ a.iconbtn:hover { color: var(--pink-strong); text-decoration: none; }
 
 .set-row { display: flex; align-items: center; gap: 10px; margin: 10px 0; flex-wrap: wrap; }
 .set-row .lbl { width: 72px; color: var(--text-soft); flex-shrink: 0; }
+.autostart-setting .seg button:disabled { cursor: wait; opacity: 0.55; }
 .friend-add { display: flex; gap: 6px; }
 .friend-add input {
   background: var(--bg); border: 1px solid var(--border); border-radius: 5px;

@@ -14,6 +14,11 @@ fn show_main_window(app: &tauri::AppHandle) {
     }
 }
 
+#[cfg(desktop)]
+fn started_by_autostart() -> bool {
+    std::env::args().any(|arg| arg == "--autostart")
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let mut builder = tauri::Builder::default();
@@ -34,6 +39,10 @@ pub fn run() {
                     .with_filter(|label| label == "main")
                     .build(),
             )
+            .plugin(tauri_plugin_autostart::init(
+                tauri_plugin_autostart::MacosLauncher::LaunchAgent,
+                Some(vec!["--autostart"]),
+            ))
             .setup(|app| {
                 let show = MenuItemBuilder::with_id("show", "显示主窗口").build(app)?;
                 let quit = MenuItemBuilder::with_id("quit", "退出").build(app)?;
@@ -64,6 +73,11 @@ pub fn run() {
                 }
 
                 tray.build(app)?;
+                if started_by_autostart() {
+                    if let Some(window) = app.get_webview_window("main") {
+                        let _ = window.hide();
+                    }
+                }
                 Ok(())
             })
             .on_window_event(|window, event| {
