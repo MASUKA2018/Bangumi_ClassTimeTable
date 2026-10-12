@@ -1,4 +1,9 @@
 #[cfg(desktop)]
+mod backups;
+#[cfg(desktop)]
+mod updates;
+
+#[cfg(desktop)]
 use tauri::{
     menu::{MenuBuilder, MenuItemBuilder},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
@@ -19,6 +24,66 @@ fn started_by_autostart() -> bool {
     std::env::args().any(|arg| arg == "--autostart")
 }
 
+#[cfg(desktop)]
+#[tauri::command]
+fn sync_window_theme(
+    window: tauri::WebviewWindow,
+    dark: bool,
+    background: [u8; 3],
+    foreground: [u8; 3],
+) -> Result<(), String> {
+    if window.label() != "main" {
+        return Err("Only the main window can change native window appearance".into());
+    }
+    window
+        .set_theme(Some(if dark {
+            tauri::Theme::Dark
+        } else {
+            tauri::Theme::Light
+        }))
+        .map_err(|error| error.to_string())?;
+    window
+        .set_background_color(Some(tauri::window::Color(
+            background[0],
+            background[1],
+            background[2],
+            255,
+        )))
+        .map_err(|error| error.to_string())?;
+
+    #[cfg(target_os = "macos")]
+    window
+        .set_title_bar_style(tauri::TitleBarStyle::Transparent)
+        .map_err(|error| error.to_string())?;
+
+    #[cfg(windows)]
+    {
+        use windows_sys::Win32::Graphics::Dwm::{
+            DwmSetWindowAttribute, DWMWA_CAPTION_COLOR, DWMWA_TEXT_COLOR,
+        };
+        let hwnd = window.hwnd().map_err(|error| error.to_string())?.0;
+        // COLORREF is 0x00BBGGRR. These two attributes are available on Windows 11;
+        // earlier Windows versions retain the light/dark native appearance above.
+        for (attribute, rgb) in [
+            (DWMWA_CAPTION_COLOR, background),
+            (DWMWA_TEXT_COLOR, foreground),
+        ] {
+            let color = u32::from(rgb[0]) | (u32::from(rgb[1]) << 8) | (u32::from(rgb[2]) << 16);
+            unsafe {
+                let _ = DwmSetWindowAttribute(
+                    hwnd,
+                    attribute as u32,
+                    (&color as *const u32).cast(),
+                    std::mem::size_of::<u32>() as u32,
+                );
+            }
+        }
+    }
+    #[cfg(not(windows))]
+    let _ = foreground;
+    Ok(())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let mut builder = tauri::Builder::default();
@@ -28,6 +93,15 @@ pub fn run() {
     #[cfg(desktop)]
     {
         builder = builder
+            .invoke_handler(tauri::generate_handler![
+                sync_window_theme,
+                backups::list_local_backups,
+                backups::read_local_backup,
+                backups::save_local_backup,
+                updates::check_app_update,
+                updates::install_app_update
+            ])
+            .plugin(tauri_plugin_updater::Builder::new().build())
             .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
                 show_main_window(app);
             }))

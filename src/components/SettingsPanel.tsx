@@ -1,11 +1,11 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState, type CSSProperties, type ReactNode } from 'react'
 import type { BgmAccount, Settings } from '../types'
 import { clearApiCache } from '../lib/api'
 import { t, wdFull } from '../lib/i18n'
-import { loadPersisted } from '../lib/store'
 import type { OauthConf } from '../lib/oauth'
 import type { ReminderKind, ReminderStatus } from '../lib/notifications'
 import { getAutostartEnabled, setAutostartEnabled, supportsAutostart } from '../lib/autostart'
+import { THEMES } from '../lib/themes'
 
 interface Props {
   settings: Settings
@@ -24,6 +24,8 @@ interface Props {
   onTestReminder: (kind: ReminderKind) => void
   onExportIcs: () => void
   onClose: () => void
+  features: ReactNode
+  syncPaused: boolean
 }
 
 export default function SettingsPanel({
@@ -43,9 +45,10 @@ export default function SettingsPanel({
   onTestReminder,
   onExportIcs,
   onClose,
+  features,
+  syncPaused,
 }: Props) {
   const [name, setName] = useState('')
-  const fileRef = useRef<HTMLInputElement>(null)
   const [token, setToken] = useState('')
   const [verifying, setVerifying] = useState(false)
   const [loginErr, setLoginErr] = useState('')
@@ -106,32 +109,6 @@ export default function SettingsPanel({
     }
   }
 
-  // 追番数据备份:localStorage 是唯一存储,换浏览器/清缓存前先导出
-  const exportBackup = () => {
-    const payload = { app: 'bangumi-timetable', version: 1, exportedAt: new Date().toISOString(), data: loadPersisted() }
-    const blob = new Blob([JSON.stringify(payload, null, 1)], { type: 'application/json' })
-    const a = document.createElement('a')
-    a.href = URL.createObjectURL(blob)
-    const d = new Date()
-    a.download = `bangumi-timetable-backup-${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}.json`
-    a.click()
-    URL.revokeObjectURL(a.href)
-  }
-
-  const importBackup = async (file: File) => {
-    try {
-      const raw = JSON.parse(await file.text())
-      const data = raw?.data ?? raw // 兼容裸 Persisted 格式
-      if (!data?.tracking || !data?.settings) throw new Error(t('不是有效的备份文件'))
-      const n = Object.keys(data.tracking.status ?? {}).length
-      if (!window.confirm(t('导入将覆盖本机的追番记录与设置(备份含 {n} 部追番状态),确定?', { n }))) return
-      localStorage.setItem('btt:v1', JSON.stringify(data))
-      location.reload()
-    } catch (e) {
-      window.alert(t('导入失败:{e}', { e: e instanceof Error ? e.message : String(e) }))
-    }
-  }
-
   return (
     <div className="overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
       <div className="modal">
@@ -150,7 +127,7 @@ export default function SettingsPanel({
               <b>{account.nickname}</b>
               <span className="dim">@{account.username}</span>
               <button className="iconbtn" disabled={sync.busy} onClick={onSyncNow}>
-                {t(sync.busy ? '同步中…' : '↻ 立即同步')}
+                {t(sync.busy ? '同步中…' : syncPaused ? '恢复同步' : '↻ 立即同步')}
               </button>
               <button className="iconbtn" onClick={onLogout}>
                 {t('断开')}
@@ -197,24 +174,27 @@ export default function SettingsPanel({
               next.bgm.tv/demo/access-token
             </a>{' '}
             {t(
-              '生成个人令牌(建议选一年有效期)粘贴连接。令牌只保存在本机浏览器,不进备份文件,可随时吊销。 连接后:应用内的追番改动即时写回 bgm.tv;bgm.tv 侧的改动每半小时拉取合并(以 bgm 为准)。 首次连接会双向合并(状态本机优先、进度取较大值)。bgm 的「搁置」在课表按未追显示; 本地取消追番不会删除 bgm 收藏。',
+              '生成个人令牌(建议选一年有效期)粘贴连接。令牌只保存在本机浏览器,不进备份文件,可随时吊销。 连接后:应用内的追番改动即时写回 bgm.tv;bgm.tv 侧的改动每半小时拉取合并(以 bgm 为准)。 首次连接会双向合并(状态本机优先、进度取较大值)。bgm 的「搁置」保留进度并暂停提醒; 本地取消追番不会删除 bgm 收藏。',
             )}
           </div>
         )}
+        <div className="set-sub">{t('支持“搁置”状态，保留进度并暂停提醒。')}</div>
 
-        <div className="set-row">
+        <div className="set-row theme-setting">
           <span className="lbl">{t('主题')}</span>
-          <span className="seg small">
-            {(
-              [
-                ['bgm-dark', 'Bangumi深色'],
-                ['dark', '深色'],
-                ['contrast', '高对比深色'],
-                ['light', '白色'],
-              ] as const
-            ).map(([k, label]) => (
-              <button key={k} className={settings.theme === k ? 'on' : ''} onClick={() => onChange({ theme: k })}>
-                {t(label)}
+          <span className="theme-grid">
+            {THEMES.map((theme) => (
+              <button
+                type="button"
+                key={theme.id}
+                className={`theme-preview${settings.theme === theme.id ? ' on' : ''}`}
+                aria-pressed={settings.theme === theme.id}
+                style={{ '--preview-bg': theme.background, '--preview-fg': theme.foreground, '--preview-accent': theme.accent } as CSSProperties}
+                onClick={() => onChange({ theme: theme.id, themeMode: 'manual' })}
+              >
+                <span className="theme-swatches" aria-hidden><i /><i /><i /></span>
+                <span className="theme-label">{t(theme.label)}</span>
+                {settings.theme === theme.id && <span className="theme-check" aria-hidden>✓</span>}
               </button>
             ))}
           </span>
@@ -397,26 +377,7 @@ export default function SettingsPanel({
           </button>
         </div>
 
-        <div className="set-row">
-          <span className="lbl">{t('备份')}</span>
-          <button className="iconbtn" onClick={exportBackup}>
-            {t('⤓ 导出追番数据')}
-          </button>
-          <button className="iconbtn" onClick={() => fileRef.current?.click()}>
-            {t('⤒ 导入')}
-          </button>
-          <input
-            ref={fileRef}
-            type="file"
-            accept=".json,application/json"
-            style={{ display: 'none' }}
-            onChange={(e) => {
-              const f = e.target.files?.[0]
-              if (f) importBackup(f)
-              e.target.value = ''
-            }}
-          />
-        </div>
+        {features}
 
         <div className="set-row">
           <span className="lbl">{t('数据')}</span>

@@ -9,6 +9,14 @@ export function airedEps(show: Show, now: number): number | undefined {
 
 export type Continuity = 'new' | 'carry' | 'long'
 
+export interface BehindProgress {
+  watched: number
+  aired: number
+  count: number
+  fromEpisode: number
+  toEpisode: number
+}
+
 /**
  * 跨季分级:
  *   new   本季新番
@@ -27,10 +35,18 @@ export function continuity(show: Show, seasonStart: number): Continuity {
   return 'carry'
 }
 
+/** 落后明细(仅"在看"状态有意义);收藏进度语义为从第 1 集连续看到 watched。 */
+export function behindProgress(show: Show, tracking: Tracking, now: number): BehindProgress | null {
+  if (tracking.status[show.id] !== 'watching') return null
+  const aired = airedEps(show, now)
+  if (aired === undefined) return null
+  const watched = Math.max(0, tracking.watched[show.id] ?? 0)
+  const count = Math.max(0, aired - watched)
+  if (count === 0) return null
+  return { watched, aired, count, fromEpisode: watched + 1, toEpisode: aired }
+}
+
 /** 落后集数(仅"在看"状态有意义) */
 export function behindCount(show: Show, tracking: Tracking, now: number): number {
-  if (tracking.status[show.id] !== 'watching') return 0
-  const aired = airedEps(show, now)
-  if (aired === undefined) return 0
-  return Math.max(0, aired - (tracking.watched[show.id] ?? 0))
+  return behindProgress(show, tracking, now)?.count ?? 0
 }

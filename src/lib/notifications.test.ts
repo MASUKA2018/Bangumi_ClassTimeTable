@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import type { Settings, Show, Tracking } from '../types'
+import { DEFAULT_SETTINGS } from './store'
 import { setLang } from './i18n'
 import { buildRichReminderPayload, isDailyReminderDue, reminderDayKey } from './notifications'
 
 const settings: Settings = {
+  ...DEFAULT_SETTINGS,
   theme: 'bgm-dark',
   lang: 'zh-Hans',
   tzMode: 'jst',
@@ -56,7 +58,7 @@ describe('daily reminder content', () => {
     }
     const payload = buildRichReminderPayload([show], tracking, settings, Date.parse('2026-09-14T11:00:00Z'), 'watching')
     expect(payload.heading).toBe('今日在看更新')
-    expect(payload.items).toEqual([
+    expect(payload.items).toMatchObject([
       {
         id: 1,
         title: '测试番剧',

@@ -1,11 +1,14 @@
 import type { RichReminderPayload, ReminderKind } from './notifications'
+import { hexRgb, themeDefinition } from './themes'
 
 export const RICH_REMINDER_EVENT = 'btt-rich-reminder'
+export const REMINDER_ACTION_EVENT = 'btt-reminder-action'
+export interface ReminderAction { kind: ReminderKind; id: number; action: 'detail' | 'snooze' | 'watched' }
 export const reminderPayloadKey = (kind: ReminderKind) => `btt:rich-reminder:${kind}:v1`
 
 // 内容仍按 720×300 排版，由 ReminderPopup 整体缩放到 75%。
 const WIDTH = 540
-const HEIGHT = 225
+const HEIGHT = 250
 const MARGIN = 16
 const GAP = 12
 
@@ -64,7 +67,7 @@ export async function showRichReminder(payload: RichReminderPayload): Promise<vo
   const logicalPosition = position.toLogical(monitor.scaleFactor)
   const macOS = isMacOS()
   const backgroundColor: [number, number, number, number] =
-    macOS ? (payload.theme === 'light' ? [247, 244, 245, 255] : [35, 36, 38, 255]) : [0, 0, 0, 0]
+    macOS ? [...hexRgb(themeDefinition(payload.theme).background), 255] : [0, 0, 0, 0]
 
   let popup = await WebviewWindow.getByLabel(label)
   if (!popup) {
@@ -95,6 +98,7 @@ export async function showRichReminder(payload: RichReminderPayload): Promise<vo
   }
   // Windows 创建 WebView 窗口时，系统或状态恢复插件可能覆盖初始坐标。
   // 窗口创建完成后每次都重新定位，确保落在任务栏工作区右下角。
+  if (macOS) await popup.setBackgroundColor(backgroundColor)
   await popup.setPosition(position)
   await emitTo(label, RICH_REMINDER_EVENT, payload)
   await popup.show()

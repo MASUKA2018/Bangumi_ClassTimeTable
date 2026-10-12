@@ -63,8 +63,20 @@ jobs:
       - name: Verify frontend production build
         run: npm run build
 
-      - name: Build NSIS and MSI packages
-        run: npm run desktop:build -- --bundles nsis,msi
+      - name: Test feature logic
+        run: npm test
+
+      - name: Build EXE installer (signed updates when configured)
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        shell: pwsh
+        run: |
+          if ($env:TAURI_SIGNING_PRIVATE_KEY) {
+            npm run desktop:build -- --bundles nsis
+          } else {
+            npm run desktop:build -- --bundles nsis --config src-tauri/tauri.unsigned.conf.json
+          }
 
       - name: Upload Windows packages
         uses: actions/upload-artifact@v7
@@ -75,4 +87,4 @@ jobs:
           path: |
             src-tauri/target/release/bangumi-timetable-app.exe
             src-tauri/target/release/bundle/nsis/*-setup.exe
-            src-tauri/target/release/bundle/msi/*.msi
+            src-tauri/target/release/bundle/nsis/*.sig

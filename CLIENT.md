@@ -4,7 +4,7 @@
 
 ## 本地运行
 
-需要 Node.js 20.19+、Rust 1.77.2+ 和平台编译工具：macOS 安装 Xcode Command Line Tools，Windows 安装 Microsoft C++ Build Tools 与 WebView2。
+需要 Node.js 20.19+、Rust 1.90+（含更新插件的最低要求）和平台编译工具：macOS 安装 Xcode Command Line Tools，Windows 安装 Microsoft C++ Build Tools 与 WebView2。
 
 ```bash
 npm install
@@ -23,7 +23,7 @@ npm run dev
 npm run desktop:build
 ```
 
-Windows 会生成面向当前用户安装的 NSIS `-setup.exe` 与简体中文 MSI，macOS 只生成 `.app`。Windows 安装器内嵌约 1.8 MB 的 WebView2 bootstrapper；Windows 10/11 已有合适运行时便直接使用，否则安装器会补装。桌面端会保存窗口大小、位置和最大化状态，重复启动快捷方式会聚焦已有窗口。关闭或最小化主窗口会将应用收进系统托盘，左键托盘图标恢复窗口，右键菜单中的“退出”才会结束后台提醒。
+Windows 默认只生成面向当前用户安装的 NSIS `-setup.exe`，不生成 MSI；macOS 请显式使用 `--bundles app`。Windows 安装器内嵌约 1.8 MB 的 WebView2 bootstrapper；Windows 10/11 已有合适运行时便直接使用，否则安装器会补装。桌面端会保存窗口大小、位置和最大化状态，重复启动快捷方式会聚焦已有窗口。关闭或最小化主窗口会将应用收进系统托盘，左键托盘图标恢复窗口，右键菜单中的“退出”才会结束后台提醒。
 
 设置页将番剧提醒拆为“在看”与“未在看”两组，可分别开关、设置不同时间并预览。Windows 和 macOS 原生端优先在主屏工作区右下角显示无边框主题卡片，包含封面、标题、当天放送时间和更新集数；多部番剧可在卡片内切换，两类同时出现会自动错开。提醒按当前选择的日本/本地时区和深夜日界计算，每组同一课表日只显示一次，窗口创建失败时回落到系统通知。macOS 使用主题匹配的不透明卡片底层，避免启用影响 Mac App Store 上架的私有透明窗口 API。
 
@@ -39,13 +39,25 @@ npm run desktop:build -- --bundles app
 
 本地产物位于 `src-tauri/target/release/bundle/macos/`。当前 beta 只做临时签名，尚未配置 Apple Developer ID 签名和公证；正式对外分发前需要完成这两项配置。
 
-只在 Windows 上生成两种安装包：
+只在 Windows 上生成 EXE 安装包：
 
 ```bash
-npm run desktop:build -- --bundles nsis,msi
+npm run desktop:build -- --bundles nsis
 ```
 
-本地产物位于 `src-tauri/target/release/bundle/nsis/` 和 `src-tauri/target/release/bundle/msi/`。当前 beta 未配置 Windows 代码签名，直接分发时 SmartScreen 可能显示“未知发布者”；正式发布前应配置受信任的代码签名证书，不要通过关闭 SmartScreen 规避提示。
+本地产物位于 `src-tauri/target/release/bundle/nsis/`。更新校验签名与 Windows Authenticode 代码签名是两回事：当前 beta 未配置 Windows 代码签名，SmartScreen 仍可能显示“未知发布者”；正式发布前应配置受信任的代码签名证书，不要通过关闭 SmartScreen 规避提示。
+
+## 0.4 更新、提醒与安全恢复
+
+- 更新中心把程序版本与放送数据分开：数据可立即刷新并保留失败前的数据；程序默认在启动后检查（一天至多一次成功检查），发现新版后需用户确认安装，不会自动安装。
+- 公开数据仓库 Releases 只发布平台安装包、`.sig` 和 `latest.json`，不上传客户端源码。更新器仅接受配置的 HTTPS 地址与内置公钥验证的文件。本次发布只登记已实际构建的 Windows x64 平台；macOS 须在 Mac 上构建签名包后再加入对应平台，不能用 Windows 安装包代替。
+- 签名构建必须设置环境变量 `TAURI_SIGNING_PRIVATE_KEY`（可为仓库外私钥的完整路径）及可选 `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`，不要将私钥写入源码、日志或提交 Git。公钥在 `tauri.conf.json` 中。签名私钥丢失将无法继续为已有安装版本发布可信更新，请离线安全备份。
+- CI 未配置签名 Secrets 时使用 `--config src-tauri/tauri.unsigned.conf.json` 生成普通安装包；它不能充当自动更新包。CI 不会自动发布到公开仓库。
+- 在看逐集提醒可设为放送前／后 0、5、10、15、30 分钟；只补发最近 5 分钟的错过提醒，避免启动时刷屏。提醒支持详情、10 分钟后再提醒、看到本集；放送前不允许标记本集。暂停、看过、抛弃不再提醒，未在看可仅提醒想看。
+- 待看清单支持欠番、今日、未来 24 小时、搁置；进度采用“已连续看完前 N 集”，并提供最近一次操作的撤销。
+- 每日备份在 Tauri 应用数据目录下的 `backups/`（Windows 默认 `%APPDATA%/com.bangumi.classtimetable/backups/`，Mac 默认 `~/Library/Application Support/com.bangumi.classtimetable/backups/`）；保留 7 天每日备份和 3 份恢复／更新前安全快照。关闭自动备份不会禁用操作前安全快照。
+- 导入支持旧版备份，先预览差异再合并／覆盖。合并保留本机设置与状态，进度取较大值；覆盖使用备份。两种恢复都先保存快照并暂停云端同步，重启后仍暂停；用户确认“恢复同步”后才可能写回 Bangumi。所有备份均排除账号、令牌、API 缓存和同步队列。
+- 显示设置提供紧凑／标准／大字、100/115/130% 字体、三种封面大小、实时跟随系统主题；共用布局，不针对单平台强改固定宽度。
 
 ## Android
 

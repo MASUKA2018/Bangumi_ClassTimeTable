@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom/client'
 import App from './App'
 import ReminderPopup from './components/ReminderPopup'
 import './styles.css'
+import './desktop-features.css'
 import { installNativeAdapters, isNativeApp } from './lib/native'
 import type { ReminderKind } from './lib/notifications'
 

@@ -11,6 +11,33 @@ interface LogEntry {
 
 const CHANGELOG: LogEntry[] = [
   {
+    d: '2026-10-12',
+    x: {
+      'zh-Hans': '桌面端 beta 0.4.0:新增独立更新中心、放送前后提醒与快捷操作、待看清单及进度撤销、7 天自动备份与安全恢复、可同步的搁置状态、显示密度与字体封面调整及跟随系统主题',
+      'zh-Hant': '桌面端 beta 0.4.0:新增獨立更新中心、放送前後提醒與快捷操作、待看清單及進度復原、7 天自動備份與安全還原、可同步的擱置狀態、顯示密度與字體封面調整及跟隨系統主題',
+      ja: 'デスクトップ beta 0.4.0:更新センター、放送前後通知と操作ボタン、未視聴一覧と進捗の取り消し、7日分のバックアップと安全な復元、保留の同期、表示密度・文字・表紙サイズとOSテーマ連動を追加',
+      en: 'Desktop beta 0.4.0: separate app/data updates, before/after-air reminders with actions, watch queue and progress undo, 7-day backups and safe restore, synced on-hold status, density/font/cover controls and live system themes',
+    },
+  },
+  {
+    d: '2026-10-11',
+    x: {
+      'zh-Hans': '桌面端 beta 0.3.8:更新安装包内置放送校正与逐集时间至 2026-10-11；保留 0.3.7 的欠番明细、主题色板与标题栏配色',
+      'zh-Hant': '桌面端 beta 0.3.8:更新安裝包內建放送校正與逐集時間至 2026-10-11；保留 0.3.7 的未看集數明細、主題色板與標題列配色',
+      ja: 'デスクトップ beta 0.3.8:内蔵の放送補正・話数別時刻を 2026-10-11 版に更新。0.3.7 の未視聴内訳・テーマ・タイトルバー配色を維持',
+      en: 'Desktop beta 0.3.8: refreshes bundled broadcast corrections and episode times through 2026-10-11; retains 0.3.7 backlog details, theme previews and title-bar colors',
+    },
+  },
+  {
+    d: '2026-10-09',
+    x: {
+      'zh-Hans': '桌面端 beta 0.3.7:顶栏未看集数可展开番剧与集数明细；系统标题栏跟随主题，新增 Nord、Dracula、Catppuccin 与 Solarized 配色及色板预览',
+      'zh-Hant': '桌面端 beta 0.3.7:頂欄未看集數可展開番劇與集數明細；系統標題列跟隨主題，新增 Nord、Dracula、Catppuccin 與 Solarized 配色及色板預覽',
+      ja: 'デスクトップ beta 0.3.7:未視聴話数の作品別内訳を追加。タイトルバーをテーマに合わせ、Nord・Dracula・Catppuccin・Solarized と色見本を追加',
+      en: 'Desktop beta 0.3.7: per-show unwatched episode details, native title-bar theme matching, and Nord, Dracula, Catppuccin and Solarized palettes with previews',
+    },
+  },
+  {
     d: '2026-10-06',
     x: {
       'zh-Hans': '桌面端 beta 0.3.6:设置新增开机自动启动；系统登录后可静默进入托盘，按设定时间继续发送番剧提醒',

@@ -67,7 +67,15 @@ jobs:
         run: npm run build
 
       - name: Build application bundle
-        run: npm run desktop:build -- --bundles app
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          if [ -n "$TAURI_SIGNING_PRIVATE_KEY" ]; then
+            npm run desktop:build -- --bundles app
+          else
+            npm run desktop:build -- --bundles app --config src-tauri/tauri.unsigned.conf.json
+          fi
 
       - name: Archive application bundle
         run: ditto -c -k --sequesterRsrc --keepParent "src-tauri/target/release/bundle/macos/番组课表.app" "src-tauri/target/release/bundle/macos/bangumi-class-timetable-macos.app.zip"
@@ -78,4 +86,7 @@ jobs:
           name: bangumi-class-timetable-macos
           if-no-files-found: error
           retention-days: 14
-          path: src-tauri/target/release/bundle/macos/bangumi-class-timetable-macos.app.zip
+          path: |
+            src-tauri/target/release/bundle/macos/bangumi-class-timetable-macos.app.zip
+            src-tauri/target/release/bundle/macos/*.tar.gz
+            src-tauri/target/release/bundle/macos/*.sig

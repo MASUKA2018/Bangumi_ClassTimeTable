@@ -27,7 +27,9 @@ export interface EnhanceData {
   regions: Record<string, string>
   /** bgm.wiki 逐集时间的最近同步时刻。 */
   syncedAt?: string
-  source?: 'bundled' | 'remote'
+  source?: 'bundled' | 'remote' | 'cache'
+  checkedAt?: number
+  stale?: boolean
 }
 
 function normalizeEnhance(raw: any, source: EnhanceData['source']): EnhanceData {
@@ -50,22 +52,23 @@ function readRemoteCache(): { t: number; v: EnhanceData } | null {
   }
 }
 
-export async function fetchEnhance(): Promise<EnhanceData> {
+export async function fetchEnhance(force = false): Promise<EnhanceData> {
   // 原生安装包里的 JSON 会随版本老化。桌面/Android 每 12 小时检查公开 CDN，
   // 失败时使用过期缓存；浏览器站点继续读取同源文件。
   if (isNativeApp()) {
     const cached = readRemoteCache()
-    if (cached && Date.now() - cached.t < REMOTE_TTL) return cached.v
+    if (!force && cached && Date.now() - cached.t < REMOTE_TTL) return { ...cached.v, source: 'cache', checkedAt: cached.t }
     try {
       const resp = await remoteFetch(REMOTE_ENHANCE, { cache: 'no-store' })
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
-      const value = normalizeEnhance(await resp.json(), 'remote')
+      const value = { ...normalizeEnhance(await resp.json(), 'remote'), checkedAt: Date.now() }
       try {
         localStorage.setItem(REMOTE_CACHE_KEY, JSON.stringify({ t: Date.now(), v: value }))
       } catch {}
       return value
     } catch (error) {
-      if (cached) return cached.v
+      if (force) throw error
+      if (cached) return { ...cached.v, source: 'cache', stale: true, checkedAt: cached.t }
       console.warn('在线逐集时间更新失败，改用安装包内置数据', error)
     }
   }

@@ -9,12 +9,12 @@ describe('reminderPhysicalPosition', () => {
         1,
         false,
       ),
-    ).toEqual({ x: 1364, y: 799 })
+    ).toEqual({ x: 1364, y: 774 })
   })
 
   it('uses physical pixels at 125% scaling and stacks a second reminder above it', () => {
     const workArea = { position: { x: 1920, y: 0 }, size: { width: 2560, height: 1400 } }
-    expect(reminderPhysicalPosition(workArea, 1.25, false)).toEqual({ x: 3785, y: 1099 })
-    expect(reminderPhysicalPosition(workArea, 1.25, true)).toEqual({ x: 3785, y: 803 })
+    expect(reminderPhysicalPosition(workArea, 1.25, false)).toEqual({ x: 3785, y: 1067 })
+    expect(reminderPhysicalPosition(workArea, 1.25, true)).toEqual({ x: 3785, y: 739 })
   })
 })

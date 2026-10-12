@@ -1,4 +1,6 @@
-export type WatchStatus = 'wish' | 'watching' | 'done' | 'dropped'
+import type { ThemeId } from './lib/themes'
+
+export type WatchStatus = 'wish' | 'watching' | 'paused' | 'done' | 'dropped'
 
 export interface SiteLink {
   site: string // 平台展示名,如 "哔哩哔哩"
@@ -77,7 +79,18 @@ export interface Tracking {
 }
 
 export interface Settings {
-  theme: 'bgm-dark' | 'dark' | 'contrast' | 'light'
+  theme: ThemeId
+  themeMode: 'manual' | 'system'
+  density: 'compact' | 'standard' | 'large'
+  fontScale: number
+  coverSize: 'small' | 'medium' | 'large'
+  autoCheckUpdates: boolean
+  backupEnabled: boolean
+  otherReminderScope: 'all' | 'wish'
+  episodeReminderEnabled: boolean
+  episodeReminderMode: 'before' | 'after'
+  episodeReminderOffset: number
+  reminderDismissSeconds: number
   lang: 'zh-Hans' | 'zh-Hant' | 'ja' | 'en' // 界面语言,首访跟随浏览器
   tzMode: 'local' | 'jst'
   lateNightCutoff: number // 深夜表记:凌晨 N 点前归前一天(显示 24+ 小时);0 = 按实际日期

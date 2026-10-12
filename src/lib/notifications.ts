@@ -16,6 +16,8 @@ export interface ReminderCardItem {
   cover?: string
   airTime: string
   episode: string
+  episodeNumber?: number
+  airAt?: number
 }
 
 export interface RichReminderPayload {
@@ -25,6 +27,9 @@ export interface RichReminderPayload {
   theme: Settings['theme']
   lang: Settings['lang']
   items: ReminderCardItem[]
+  autoHideSeconds?: number
+  preview?: boolean
+  trigger?: 'daily' | 'episode' | 'snooze'
 }
 
 export interface ReminderMessage {
@@ -121,23 +126,78 @@ export function buildRichReminderPayload(
   now: number,
   kind: ReminderKind,
 ): RichReminderPayload {
-  const matching = todayItems(shows, settings, now).filter(({ show }) =>
-    kind === 'watching' ? tracking.status[show.id] === 'watching' : tracking.status[show.id] !== 'watching',
-  )
+  const matching = todayItems(shows, settings, now).filter(({ show }) => {
+    const status = tracking.status[show.id]
+    if (kind === 'watching') return status === 'watching'
+    if (['watching', 'paused', 'done', 'dropped'].includes(status)) return false
+    return settings.otherReminderScope !== 'wish' || status === 'wish'
+  })
   return {
     kind,
     heading: t(kind === 'watching' ? '今日在看更新' : '今日未在看番剧'),
     emptyText: t(kind === 'watching' ? '今天没有“在看”番剧更新。' : '今天没有其他番剧更新。'),
     theme: settings.theme,
     lang: settings.lang,
+    autoHideSeconds: settings.reminderDismissSeconds,
+    trigger: 'daily',
     items: matching.map(({ show, occurrence }) => ({
       id: show.id,
       title: displayName(show),
       cover: show.image,
       airTime: displayAirTime(occurrence?.t, settings),
       episode: episodeText(occurrence),
+      ...(occurrence ? { episodeNumber: occurrence.epEnd, airAt: occurrence.t } : {}),
     })),
   }
+}
+
+export interface EpisodeReminder { key: string; payload: RichReminderPayload }
+/** Only catch up the previous five minutes, never burst an entire day's missed alerts. */
+export function buildEpisodeReminders(shows: Show[], tracking: Tracking, settings: Settings, now: number): EpisodeReminder[] {
+  if (!settings.episodeReminderEnabled) return []
+  const offset = settings.episodeReminderOffset * 60_000 * (settings.episodeReminderMode === 'after' ? 1 : -1)
+  const out: EpisodeReminder[] = []
+  for (const show of shows) {
+    if (tracking.status[show.id] !== 'watching') continue
+    for (const occurrence of occurrencesBetween(show, now - offset - 5 * 60_000, now - offset)) {
+      if ((tracking.watched[show.id] ?? 0) >= occurrence.epEnd) continue
+      const key = `${show.id}:${occurrence.ep}:${occurrence.t}:${settings.episodeReminderMode}:${settings.episodeReminderOffset}`
+      out.push({ key, payload: {
+        kind: 'watching', theme: settings.theme, lang: settings.lang, autoHideSeconds: settings.reminderDismissSeconds,
+        trigger: 'episode', heading: t(settings.episodeReminderMode === 'before' ? '即将放送' : '放送后提醒'), emptyText: '',
+        items: [{ id: show.id, title: displayName(show), cover: show.image, airTime: displayAirTime(occurrence.t, settings), episode: episodeText(occurrence), episodeNumber: occurrence.epEnd, airAt: occurrence.t }],
+      } })
+    }
+  }
+  return out
+}
+
+const EPISODE_SENT_KEY = 'btt:episode-reminders:sent:v1'
+export function episodeReminderSent(key: string): boolean {
+  try { return !!JSON.parse(localStorage.getItem(EPISODE_SENT_KEY) ?? '{}')[key] } catch { return false }
+}
+export function markEpisodeReminders(keys: string[], now: number): void {
+  const previous: Record<string, number> = JSON.parse(localStorage.getItem(EPISODE_SENT_KEY) ?? '{}')
+  const retained = Object.entries(previous).filter(([, at]) => now - at < 30 * DAY_MS).slice(-500)
+  for (const key of keys) retained.push([key, now])
+  localStorage.setItem(EPISODE_SENT_KEY, JSON.stringify(Object.fromEntries(retained)))
+}
+
+export interface SnoozedReminder { key: string; due: number; payload: RichReminderPayload }
+const SNOOZE_KEY = 'btt:reminder-snooze:v1'
+export function snoozedReminders(): SnoozedReminder[] {
+  try { const value = JSON.parse(localStorage.getItem(SNOOZE_KEY) ?? '[]'); return Array.isArray(value) ? value.filter(x => Number.isFinite(x?.due) && x.payload?.items?.length && typeof x.key === 'string') : [] } catch { return [] }
+}
+export function snoozeReminder(payload: RichReminderPayload, id: number, now: number): void {
+  const items = payload.items.filter(item => item.id === id)
+  if (!items.length || payload.preview) return
+  const key = `${payload.kind}:${id}`
+  const queue = snoozedReminders().filter(x => x.key !== key && x.due > now - DAY_MS)
+  queue.push({ key, due: now + 10 * 60_000, payload: { ...payload, trigger: 'snooze', items } })
+  localStorage.setItem(SNOOZE_KEY, JSON.stringify(queue.slice(-20)))
+}
+export function removeSnooze(key: string): void {
+  localStorage.setItem(SNOOZE_KEY, JSON.stringify(snoozedReminders().filter(x => x.key !== key)))
 }
 
 export function richReminderToSystemMessage(payload: RichReminderPayload): ReminderMessage {

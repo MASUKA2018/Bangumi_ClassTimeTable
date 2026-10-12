@@ -1,4 +1,5 @@
 /** Tauri 桌面/移动端适配；浏览器/PWA 构建继续使用 Web API。 */
+import { hexRgb, themeDefinition, type ThemeId } from './themes'
 
 declare global {
   interface Window {
@@ -24,6 +25,18 @@ export function nativePlatform(): NativePlatform {
 
 export function isDesktopNativeApp(): boolean {
   return isNativeApp() && nativePlatform() !== 'other'
+}
+
+/** Match native title-bar appearance to the same palette used by the webview. */
+export async function syncNativeWindowTheme(id: ThemeId): Promise<void> {
+  if (!isDesktopNativeApp()) return
+  const theme = themeDefinition(id)
+  const { invoke } = await import('@tauri-apps/api/core')
+  await invoke('sync_window_theme', {
+    dark: theme.dark,
+    background: hexRgb(theme.background),
+    foreground: hexRgb(theme.foreground),
+  })
 }
 
 /**

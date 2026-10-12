@@ -29,6 +29,7 @@ interface Props {
 const STATUS_BTNS: { k: WatchStatus; label: string }[] = [
   { k: 'wish', label: '想看' },
   { k: 'watching', label: '在看' },
+  { k: 'paused', label: '搁置' },
   { k: 'done', label: '看过' },
   { k: 'dropped', label: '抛弃' },
 ]
