@@ -8,6 +8,7 @@
  */
 import type { BgmAccount } from '../types'
 import { verifyToken } from './bgm'
+import { isNativeApp, remoteFetch } from './native'
 
 export interface OauthConf {
   clientId: string
@@ -19,6 +20,7 @@ let confPromise: Promise<OauthConf | null> | null = null
 
 /** 读站点根目录的 oauth.json;不存在(404)= 未启用 OAuth */
 export function fetchOauthConf(): Promise<OauthConf | null> {
+  if (isNativeApp()) return Promise.resolve(null)
   confPromise ??= fetch('oauth.json', { cache: 'no-cache' })
     .then((r) => (r.ok ? r.json() : null))
     .then((c) => {
@@ -57,7 +59,7 @@ async function proxy(
   path: '/oauth/token' | '/oauth/refresh',
   body: Record<string, string>,
 ): Promise<{ access_token: string; refresh_token?: string; expires_in?: number }> {
-  const resp = await fetch(conf.tokenProxy.replace(/\/+$/, '') + path, {
+  const resp = await remoteFetch(conf.tokenProxy.replace(/\/+$/, '') + path, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),

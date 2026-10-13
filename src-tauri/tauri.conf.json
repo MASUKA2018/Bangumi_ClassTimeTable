@@ -1,0 +1,74 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "番组课表",
+  "version": "0.4.0",
+  "identifier": "com.bangumi.classtimetable",
+  "build": {
+    "beforeDevCommand": "node ./node_modules/vite/bin/vite.js",
+    "devUrl": "http://localhost:5173",
+    "beforeBuildCommand": "node ./node_modules/typescript/bin/tsc && node ./node_modules/vite/bin/vite.js build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "番组课表",
+        "width": 1280,
+        "height": 820,
+        "minWidth": 860,
+        "minHeight": 600,
+        "center": true,
+        "resizable": true,
+        "fullscreen": false,
+        "backgroundColor": "#2d2e2f"
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "createUpdaterArtifacts": true,
+    "targets": ["nsis"],
+    "publisher": "MASUKA2018",
+    "category": "Entertainment",
+    "shortDescription": "像课表一样追番",
+    "longDescription": "当季动画日、周、月课表与 Bangumi 追番进度管理。",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "windows": {
+      "allowDowngrades": false,
+      "webviewInstallMode": {
+        "type": "embedBootstrapper",
+        "silent": true
+      },
+      "nsis": {
+        "installMode": "currentUser",
+        "languages": ["SimpChinese", "TradChinese", "Japanese", "English"],
+        "displayLanguageSelector": false,
+        "installerIcon": "icons/icon.ico"
+      },
+      "wix": {
+        "language": "zh-CN"
+      }
+    },
+    "macOS": {
+      "minimumSystemVersion": "10.13",
+      "signingIdentity": "-"
+    }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDU0Q0YyRjFBMTc2RjYzQkQKUldTOVkyOFhHaS9QVkpEQ2JFeGpjMnNLVVI5WE9BdWNFbGltYzhjbFhySmpac1J2RXpWdk5oSFYK",
+      "endpoints": ["https://github.com/MASUKA2018/Bangumi_ClassTimeTable/releases/latest/download/latest.json"],
+      "windows": { "installMode": "passive" }
+    }
+  }
+}

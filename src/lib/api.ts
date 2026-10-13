@@ -4,9 +4,19 @@
  * 礼貌原则:所有响应裁剪后缓存进 localStorage 并带 TTL,
  * 正常使用一天只会真正打到 API 几次,不给 bgm.tv 添负担。
  */
+import { remoteFetch } from './native'
 
 const API = 'https://api.bgm.tv'
 const CACHE_PREFIX = 'btt:cache:'
+const SUBJECT_CACHE_TTL = 7 * 86400_000
+
+/** calendar 旧接口仍会返回 http 封面；安装版 WebView 会把它当作混合内容拦截。 */
+export function normalizeBgmImageUrl(value?: string): string | undefined {
+  if (!value) return undefined
+  return value
+    .replace(/^http:\/\/lain\.bgm\.tv(?=\/)/, 'https://lain.bgm.tv')
+    .replace(/^\/\/lain\.bgm\.tv(?=\/)/, 'https://lain.bgm.tv')
+}
 
 interface CacheEntry<T> {
   t: number
@@ -50,7 +60,7 @@ export function clearCacheKey(key: string) {
 async function cachedJson<T>(key: string, url: string, ttlMs: number, trim: (raw: any) => T): Promise<T> {
   const hit = readCache<T>(key, ttlMs)
   if (hit !== null) return hit
-  const resp = await fetch(url)
+  const resp = await remoteFetch(url)
   if (!resp.ok) throw new Error(`${url} → HTTP ${resp.status}`)
   const v = trim(await resp.json())
   writeCache(key, v)
@@ -71,8 +81,8 @@ export interface CalItem {
   image?: string
 }
 
-export function fetchCalendar(): Promise<CalItem[]> {
-  return cachedJson('calendar', `${API}/calendar`, 6 * 3600_000, (raw: any[]) =>
+export async function fetchCalendar(): Promise<CalItem[]> {
+  const items = await cachedJson('calendar', `${API}/calendar`, 6 * 3600_000, (raw: any[]) =>
     raw.flatMap((day) =>
       (day.items ?? []).map((it: any) => ({
         id: it.id,
@@ -83,10 +93,12 @@ export function fetchCalendar(): Promise<CalItem[]> {
         rank: it.rank || undefined,
         total: it.rating?.total || undefined,
         doing: it.collection?.doing,
-        image: it.images?.common || it.images?.medium,
+        image: normalizeBgmImageUrl(it.images?.common || it.images?.medium),
       })),
     ),
   )
+  // 0.3.1 以前缓存过的 calendar 条目仍是 http；读取缓存后也必须升级。
+  return items.map((item) => ({ ...item, image: normalizeBgmImageUrl(item.image) }))
 }
 
 // ── subject 详情:集数/简介/封面(缓存 7 天,懒加载) ──────────────────
@@ -102,12 +114,16 @@ export interface SubjectInfo {
   hotTags?: string[] // 大家打得最多的标签,收藏面板的"常用标签"推荐
 }
 
+export function readCachedSubject(id: number): SubjectInfo | null {
+  return readCache<SubjectInfo>(`subject:${id}`, SUBJECT_CACHE_TTL)
+}
+
 export function fetchSubject(id: number): Promise<SubjectInfo> {
-  return cachedJson(`subject:${id}`, `${API}/v0/subjects/${id}`, 7 * 86400_000, (raw: any) => ({
+  return cachedJson(`subject:${id}`, `${API}/v0/subjects/${id}`, SUBJECT_CACHE_TTL, (raw: any) => ({
     id: raw.id,
     eps: raw.total_episodes || raw.eps || undefined,
     summary: raw.summary || undefined,
-    image: raw.images?.common || raw.images?.medium,
+    image: normalizeBgmImageUrl(raw.images?.common || raw.images?.medium),
     score: raw.rating?.score || undefined,
     rank: raw.rating?.rank || undefined,
     ratingTotal: raw.rating?.total || undefined,
@@ -136,7 +152,7 @@ export async function fetchUserWatching(username: string): Promise<FriendCollect
   let offset = 0
   for (let page = 0; page < 3; page++) {
     const url = `${API}/v0/users/${encodeURIComponent(username)}/collections?subject_type=2&type=3&limit=50&offset=${offset}`
-    const resp = await fetch(url)
+    const resp = await remoteFetch(url)
     if (!resp.ok) throw new Error(`用户 ${username}: HTTP ${resp.status}`)
     const data = await resp.json()
     for (const c of data.data ?? []) {

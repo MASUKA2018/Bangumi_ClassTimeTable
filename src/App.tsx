@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { AirFix, BgmAccount, CollectMemo, FriendsMap, Settings, Show, Tracking, WatchStatus } from './types'
-import { fetchCalendar, fetchSubject, fetchUserWatching, type SubjectInfo } from './lib/api'
+import { fetchCalendar, fetchSubject, fetchUserWatching, readCachedSubject, type SubjectInfo } from './lib/api'
 import {
   BgmAuthError,
   STATUS_TO_TYPE,
@@ -17,16 +17,41 @@ import {
 } from './lib/bgm'
 import { beginOauthLogin, completeOauthLogin, fetchOauthConf, refreshIfNeeded, type OauthConf } from './lib/oauth'
 import { withViewTransition } from './lib/anim'
-import { LANGS, setLang, t, type Lang } from './lib/i18n'
+import { displayName, LANGS, setLang, t, type Lang } from './lib/i18n'
 import AboutModal from './components/AboutModal'
 import { fetchBangumiData } from './lib/bangumiData'
 import { buildShows, fetchEnhance } from './lib/merge'
-import { behindCount, continuity, type Continuity } from './lib/progress'
+import { behindProgress, continuity, type Continuity } from './lib/progress'
 import { weightedScore } from './lib/score'
 import { currentSeason, displayTz, partsInZone, seasonStartInstant } from './lib/time'
 import { fetchSeasonList, fetchSeasonPack, fmtSeason, seasonMonthOf, seasonStartOf } from './lib/seasons'
 import { buildIcs, downloadIcs } from './lib/ics'
-import { loadPersisted, savePersisted, type RegionClass } from './lib/store'
+import { loadPersisted, savePersisted, type Persisted, type RegionClass } from './lib/store'
+import { createBackup } from './lib/backups'
+import { useAppearance } from './lib/appearance'
+import { useAppUpdates } from './lib/updates'
+import { airedEps } from './lib/progress'
+import PendingPanel from './components/PendingPanel'
+import DesktopFeatures from './components/DesktopFeatures'
+import {
+  buildRichReminderPayload,
+  buildEpisodeReminders, episodeReminderSent, markEpisodeReminders,
+  snoozedReminders, snoozeReminder, removeSnooze,
+  isDailyReminderDue,
+  markReminderDelivered,
+  notificationPermissionGranted,
+  readLastReminderDay,
+  reminderDayKey,
+  requestNotificationAccess,
+  richReminderToSystemMessage,
+  sendSystemNotification,
+  type ReminderKind,
+  type RichReminderPayload,
+  type ReminderStatus,
+} from './lib/notifications'
+import { showRichReminder, REMINDER_ACTION_EVENT, reminderPayloadKey, type ReminderAction } from './lib/reminderWindow'
+import { isNativeApp } from './lib/native'
+import { THEMES } from './lib/themes'
 import WeekView from './components/WeekView'
 import DayView from './components/DayView'
 import MonthView, { type MonthCursor } from './components/MonthView'
@@ -36,7 +61,9 @@ import SettingsPanel from './components/SettingsPanel'
 
 /** 视口宽度足够时,详情走右侧常驻面板而非弹窗 */
 function useWideLayout(): boolean {
-  const query = '(min-width: 1000px)'
+  // 低于 1240px 时侧栏即使压到最窄也会挤出横向滚动条，改走详情弹窗。
+  // 更宽时由 CSS 自动限制侧栏宽度，优先给七列课表留出完整空间。
+  const query = '(min-width: 1240px)'
   const [wide, setWide] = useState(() => window.matchMedia(query).matches)
   useEffect(() => {
     const mq = window.matchMedia(query)
@@ -52,13 +79,14 @@ function useWideLayout(): boolean {
 }
 
 type View = 'day' | 'week' | 'month'
-type Filter = 'all' | 'mine' | 'watching' | 'wish'
+type Filter = 'all' | 'mine' | 'watching' | 'wish' | 'paused'
 
 const FILTERS: { k: Filter; label: string }[] = [
   { k: 'all', label: '全部' },
   { k: 'mine', label: '我的课表' },
   { k: 'watching', label: '在看' },
   { k: 'wish', label: '想看' },
+  { k: 'paused', label: '搁置' },
 ]
 
 const CONT_OPTS: { k: Continuity; label: string; title: string }[] = [
@@ -85,26 +113,54 @@ const REP_OPTS: { v: number; label: string }[] = [
   { v: 7.5, label: '≥7.5' },
 ]
 
-const THEMES: [Settings['theme'], string][] = [
-  ['bgm-dark', 'Bangumi深色'],
-  ['dark', '深色'],
-  ['contrast', '高对比深色'],
-  ['light', '白色'],
-]
+const REMINDER_KINDS: ReminderKind[] = ['watching', 'other']
+
+/** 原生端优先展示主题卡片；创建卡片窗口失败或网页端则回落到系统通知。 */
+async function deliverReminder(payload: RichReminderPayload, allowPermissionPrompt: boolean) {
+  if (isNativeApp()) {
+    try {
+      await showRichReminder(payload)
+      return 'granted' as const
+    } catch (error) {
+      console.warn('富提醒窗口创建失败，回落到系统通知', error)
+    }
+  }
+  const access = allowPermissionPrompt
+    ? await requestNotificationAccess()
+    : (await notificationPermissionGranted())
+      ? 'granted'
+      : 'denied'
+  if (access !== 'granted') return access
+  await sendSystemNotification(richReminderToSystemMessage(payload))
+  return 'granted' as const
+}
 
 export default function App() {
   const init = useRef(loadPersisted())
   const [settings, setSettings] = useState<Settings>(init.current.settings)
+  const actualTheme = useAppearance(settings)
+  const updates = useAppUpdates(settings.autoCheckUpdates)
   setLang(settings.lang) // 渲染最上游设定语言,子组件的 t() 全部生效
   const [tracking, setTracking] = useState<Tracking>(init.current.tracking)
   const [overrides, setOverrides] = useState<Record<number, AirFix>>(init.current.overrides)
 
   const [shows, setShows] = useState<Show[] | null>(null)
+  const [scheduleDataAt, setScheduleDataAt] = useState<string | undefined>()
+  const [dataSource, setDataSource] = useState('')
+  const [dataBusy, setDataBusy] = useState(false)
+  const [dataMessage, setDataMessage] = useState('')
+  const [backupError, setBackupError] = useState('')
+  const [storageError, setStorageError] = useState('')
+  const [showPending, setShowPending] = useState(false)
+  const [undoProgress, setUndoProgress] = useState<{ id: number; before: number; after: number } | null>(null)
+  const syncPausedRef = useRef(localStorage.getItem('btt:bgm:sync-paused:v1') === 'true')
+  const [syncPaused, setSyncPaused] = useState(syncPausedRef.current)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [seasonSel, setSeasonSel] = useState<string>('live') // 'live' 或归档季 YYYYMM
   const [seasonList, setSeasonList] = useState<string[]>([])
   const [packs, setPacks] = useState<Record<string, Show[]>>({})
-  const [view, setView] = useState<View>('week')
+  // 窄屏默认日视图，避免手机首次打开就面对需要横向滚动的七列周课表。
+  const [view, setView] = useState<View>(() => (window.matchMedia('(max-width: 720px)').matches ? 'day' : 'week'))
   const [filter, setFilter] = useState<Filter>('all')
   const [query, setQuery] = useState('')
   // 筛选面板(搜索框左侧):范围多选 / 产地 / 口碑加权分下限 / 来源 / 题材,选择持久化
@@ -120,9 +176,16 @@ export default function App() {
   const [monthCursor, setMonthCursor] = useState<MonthCursor | null>(null) // null = 默认月
   const [showSettings, setShowSettings] = useState(false)
   const [showAbout, setShowAbout] = useState(false)
+  const [behindOpen, setBehindOpen] = useState(false)
+  const behindTriggerRef = useRef<HTMLButtonElement>(null)
   const [friendsMap, setFriendsMap] = useState<FriendsMap>(new Map())
   const [friendErrors, setFriendErrors] = useState<Record<string, string>>({})
   const [now, setNow] = useState(() => Date.now())
+  const [reminderStatus, setReminderStatus] = useState<Record<ReminderKind, ReminderStatus>>({
+    watching: 'idle',
+    other: 'idle',
+  })
+  const reminderSending = useRef(new Set<ReminderKind>())
   const [account, setAccount] = useState<BgmAccount | null>(() => loadAccount())
   const [syncState, setSyncState] = useState<{ msg: string; busy: boolean }>({ msg: '', busy: false })
   const [oauthConf, setOauthConf] = useState<OauthConf | null>(null)
@@ -130,15 +193,26 @@ export default function App() {
 
   // ── 持久化 & 主题 ──────────────────────────────────────────────
   useEffect(() => {
-    savePersisted({
+    const saved = savePersisted({
       settings,
       tracking,
       overrides,
       filters: { cont: contSel, reg: regSel, repMin, src: srcSel, tag: tagSel },
     })
-    document.documentElement.setAttribute('data-theme', settings.theme)
+    setStorageError(saved ? '' : t('本机存储写入失败，请立即导出备份。'))
     document.documentElement.lang = settings.lang
   }, [settings, tracking, overrides, contSel, regSel, repMin, srcSel, tagSel])
+
+  const backupDay = new Date(now).toLocaleDateString('sv-SE')
+  useEffect(() => {
+    if (!settings.backupEnabled) return
+    const timer = window.setTimeout(() => {
+      createBackup({ settings, tracking, overrides, filters: { cont: contSel, reg: regSel, repMin, src: srcSel, tag: tagSel } })
+        .then(() => setBackupError(''))
+        .catch(error => setBackupError(t('自动备份失败：{error}', { error: String(error) })))
+    }, 2000)
+    return () => window.clearTimeout(timer)
+  }, [settings, tracking, overrides, contSel, regSel, repMin, srcSel, tagSel, backupDay])
 
   // 主题切换时给全站颜色一个短暂的渐变窗口(首次挂载不做,避免开屏闪变)
   const themeAnimReady = useRef(false)
@@ -154,7 +228,7 @@ export default function App() {
       window.clearTimeout(t)
       el.removeAttribute('data-theme-anim')
     }
-  }, [settings.theme])
+  }, [actualTheme])
 
   // ── Bangumi 账号:令牌登录 + 双向同步 ───────────────────────────
   const accountRef = useRef(account)
@@ -169,6 +243,7 @@ export default function App() {
 
   /** OAuth 令牌到期前静默续期;续不回来 → 标记失效。个人令牌原样通过。 */
   const ensureFresh = useCallback(async (): Promise<BgmAccount | null> => {
+    if (syncPausedRef.current) return null
     const acc = accountRef.current
     if (!acc || acc.invalid) return null
     const fresh = await refreshIfNeeded(oauthRef.current, acc)
@@ -185,14 +260,17 @@ export default function App() {
   }, [])
 
   const drainTimer = useRef<number | null>(null)
+  const drainingRef = useRef(false)
   const drainNow = useCallback(async () => {
-    const acc = await ensureFresh()
-    if (!acc) return
+    if (drainingRef.current || syncPausedRef.current) return
+    drainingRef.current = true
     try {
+      const acc = await ensureFresh()
+      if (!acc || syncPausedRef.current) return
       await drainQueue(acc)
     } catch (e) {
       if (e instanceof BgmAuthError) setAccount((a) => (a ? { ...a, invalid: true } : a))
-    }
+    } finally { drainingRef.current = false }
   }, [ensureFresh])
   const scheduleDrain = useCallback(() => {
     if (drainTimer.current) window.clearTimeout(drainTimer.current)
@@ -244,6 +322,7 @@ export default function App() {
 
   const bgmLogin = useCallback(async (token: string) => {
     const me = await verifyToken(token.trim()) // 失败抛错,由设置页展示
+    syncPausedRef.current = false; setSyncPaused(false); localStorage.removeItem('btt:bgm:sync-paused:v1')
     setAccount({ token: token.trim(), ...me, mergedOnce: false })
   }, [])
 
@@ -294,6 +373,8 @@ export default function App() {
       try {
         const [cal, bd, enh] = await Promise.all([fetchCalendar(), fetchBangumiData(), fetchEnhance()])
         if (!alive) return
+        setScheduleDataAt(enh.syncedAt)
+        setDataSource(enh.stale ? '离线缓存（更新失败）' : enh.source === 'remote' ? '在线数据' : enh.source === 'cache' ? '本机缓存' : '安装包内置数据')
         setShows(buildShows(cal, bd, enh, Date.now()))
       } catch (e) {
         if (alive) setLoadError(e instanceof Error ? e.message : String(e))
@@ -304,6 +385,23 @@ export default function App() {
       alive = false
     }
   }, [])
+
+  const refreshScheduleData = useCallback(async () => {
+    if (dataBusy) return
+    setDataBusy(true); setDataMessage('')
+    try {
+      const [cal, bd, enh] = await Promise.all([fetchCalendar(), fetchBangumiData(), fetchEnhance(true)])
+      setScheduleDataAt(enh.syncedAt); setDataSource(enh.source === 'remote' ? '在线数据' : '安装包内置数据')
+      setShows(buildShows(cal, bd, enh, Date.now())); setLoadError(null)
+      setDataMessage(t('放送数据已更新。'))
+    } catch (error) { setDataMessage(t('数据更新失败，保留现有数据：{error}', { error: String(error) })) }
+    finally { setDataBusy(false) }
+  }, [dataBusy])
+  useEffect(() => {
+    if (!isNativeApp()) return
+    const timer = window.setInterval(() => void refreshScheduleData(), 12 * 3600_000)
+    return () => window.clearInterval(timer)
+  }, [refreshScheduleData])
 
   // ── 归档季数据包(静态文件,按需加载) ────────────────────────────
   useEffect(() => {
@@ -317,27 +415,36 @@ export default function App() {
     }
   }, [seasonSel, packs])
 
-  // ── 背景补全:在追的番 + 流媒体番,懒拉集数/封面(有 7 天缓存) ──
+  // ── 背景补全:优先在追/想看,再补齐所有缺失封面(详情缓存 7 天) ──
   const enriched = useRef(new Set<number>())
   useEffect(() => {
     if (!shows) return
+    const priority = (s: Show) => {
+      const status = tracking.status[s.id]
+      return status === 'watching' || status === 'wish' ? 2 : !s.fromCalendar ? 1 : 0
+    }
     const targets = shows
       .filter((s) => {
         const tracked = tracking.status[s.id] === 'watching' || tracking.status[s.id] === 'wish'
-        return (tracked || !s.fromCalendar) && (!s.epsTotal || !s.image) && !enriched.current.has(s.id)
+        return (!s.image || (tracked && !s.epsTotal)) && !enriched.current.has(s.id)
       })
-      .slice(0, 40)
+      .sort((a, b) => priority(b) - priority(a))
     if (targets.length === 0) return
     let alive = true
     ;(async () => {
       for (const t of targets) {
         enriched.current.add(t.id)
         try {
-          const info = await fetchSubject(t.id)
+          const cached = readCachedSubject(t.id)
+          const info = cached ?? (await fetchSubject(t.id))
           if (!alive) return
           applySubjectInfo(info)
-        } catch {}
-        await new Promise((r) => setTimeout(r, 120))
+          // 缓存命中不占用网络配额；真实请求限制在约每秒 3 次。
+          if (!cached) await new Promise((r) => setTimeout(r, 350))
+        } catch (error) {
+          enriched.current.delete(t.id)
+          console.warn(`补全番剧 ${t.id} 的封面失败`, error)
+        }
       }
     })()
     return () => {
@@ -411,6 +518,11 @@ export default function App() {
     () => (baseShows ? baseShows.map((s) => (overrides[s.id] ? { ...s, airFix: overrides[s.id] } : s)) : null),
     [baseShows, overrides],
   )
+  // 浏览归档季时,每日提醒仍始终使用实时当季数据。
+  const liveReminderShows = useMemo(
+    () => (shows ? shows.map((s) => (overrides[s.id] ? { ...s, airFix: overrides[s.id] } : s)) : null),
+    [shows, overrides],
+  )
 
   const setOverride = useCallback((id: number, fix: AirFix | null) => {
     setOverrides((o) => {
@@ -427,9 +539,10 @@ export default function App() {
     const q = query.trim().toLowerCase()
     return effShows.filter((s) => {
       const st = tracking.status[s.id]
-      if (filter === 'mine' && st !== 'watching' && st !== 'wish') return false
+      if (filter === 'mine' && st !== 'watching' && st !== 'wish' && st !== 'paused') return false
       if (filter === 'watching' && st !== 'watching') return false
       if (filter === 'wish' && st !== 'wish') return false
+      if (filter === 'paused' && st !== 'paused') return false
       if (!contSel.includes(continuity(s, seasonStart))) return false
       if (!regSel.includes(regionClass(s.region))) return false
       if (repMin > 0) {
@@ -507,25 +620,57 @@ export default function App() {
     return () => document.removeEventListener('mousedown', onDown)
   }, [advOpen])
 
+  // 顶栏落后集数明细:点击外部或按 Escape 收起。
+  useEffect(() => {
+    if (!behindOpen) return
+    const onDown = (e: MouseEvent) => {
+      if (!(e.target as HTMLElement).closest('.behind-wrap')) setBehindOpen(false)
+    }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setBehindOpen(false)
+        behindTriggerRef.current?.focus()
+      }
+    }
+    document.addEventListener('mousedown', onDown)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onDown)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [behindOpen])
+
   const stats = useMemo(() => {
     if (!effShows) return null
     // 只数本季在播的(账号同步后 tracking 会含跨季收藏,不能全量数)
     const watching = effShows.filter((s) => tracking.status[s.id] === 'watching').length
-    const behindTotal = effShows.reduce((acc, s) => acc + behindCount(s, tracking, now), 0)
-    return { total: effShows.length, watching, behindTotal }
+    const behindItems = effShows
+      .map((show) => {
+        const progress = behindProgress(show, tracking, now)
+        return progress ? { show, ...progress } : null
+      })
+      .filter((item): item is NonNullable<typeof item> => item !== null)
+      .sort((a, b) => b.count - a.count || a.show.id - b.show.id)
+    const behindTotal = behindItems.reduce((sum, item) => sum + item.count, 0)
+    return { total: effShows.length, watching, behindTotal, behindItems }
   }, [effShows, tracking, now])
+
+  useEffect(() => {
+    if (!stats?.behindTotal) setBehindOpen(false)
+  }, [stats?.behindTotal])
 
   const setStatus = useCallback(
     (id: number, s: WatchStatus | null) => {
-      setTracking((t) => {
-        const status = { ...t.status }
+      {
+        const status = { ...trackingRef.current.status }
         if (s === null) delete status[id]
         else status[id] = s
-        return { ...t, status }
-      })
+        const next = { ...trackingRef.current, status }
+        trackingRef.current = next; setTracking(next)
+      }
       // bgm API 无"删除收藏",本地取消追番不回写
       const acc = accountRef.current
-      if (acc && !acc.invalid && s !== null) {
+      if (acc && !acc.invalid && s !== null && !syncPausedRef.current) {
         enqueuePush(id, { type: STATUS_TO_TYPE[s] })
         scheduleDrain()
       }
@@ -534,10 +679,16 @@ export default function App() {
   )
 
   const setWatched = useCallback(
-    (id: number, n: number) => {
-      setTracking((t) => ({ ...t, watched: { ...t.watched, [id]: n } }))
+    (id: number, n: number, allowUndo = true) => {
+      n = Math.max(0, Math.min(100000, Math.floor(n)))
+      if (!Number.isFinite(n)) return
+      const before = trackingRef.current.watched[id] ?? 0
+      if (before === n) return
+      const next = { ...trackingRef.current, watched: { ...trackingRef.current.watched, [id]: n } }
+      trackingRef.current = next; setTracking(next)
+      setUndoProgress(allowUndo ? { id, before, after: n } : null)
       const acc = accountRef.current
-      if (acc && !acc.invalid) {
+      if (acc && !acc.invalid && !syncPausedRef.current) {
         const st = trackingRef.current.status[id] ?? 'watching' // 改进度即视为在看
         enqueuePush(id, { type: STATUS_TO_TYPE[st], ep: n })
         scheduleDrain()
@@ -556,7 +707,7 @@ export default function App() {
       })
       const acc = accountRef.current
       const st = trackingRef.current.status[id]
-      if (acc && !acc.invalid && st) {
+      if (acc && !acc.invalid && st && !syncPausedRef.current) {
         // 全量三字段一起写回,空值即清空,与 bgm 收藏面板语义一致
         enqueuePush(id, {
           type: STATUS_TO_TYPE[st],
@@ -581,7 +732,7 @@ export default function App() {
       const acc = accountRef.current
       const st = trackingRef.current.status[id]
       // bgm 的评分挂在收藏上:未收藏只存本机,不回写
-      if (acc && !acc.invalid && st) {
+      if (acc && !acc.invalid && st && !syncPausedRef.current) {
         enqueuePush(id, { type: STATUS_TO_TYPE[st], rate })
         scheduleDrain()
       }
@@ -592,6 +743,120 @@ export default function App() {
   const patchSettings = useCallback((patch: Partial<Settings>) => {
     setSettings((s) => ({ ...s, ...patch }))
   }, [])
+
+  const setReminderKindStatus = useCallback((kind: ReminderKind, status: ReminderStatus) => {
+    setReminderStatus((current) => ({ ...current, [kind]: status }))
+  }, [])
+
+  const setDailyReminderEnabled = useCallback(
+    async (kind: ReminderKind, enabled: boolean) => {
+      const patch: Partial<Settings> =
+        kind === 'watching' ? { watchingReminderEnabled: enabled } : { otherReminderEnabled: enabled }
+      if (!enabled) {
+        patchSettings(patch)
+        setReminderKindStatus(kind, 'idle')
+        return
+      }
+      // 富提醒窗口无需系统通知授权；网页端仍需浏览器通知权限。
+      if (isNativeApp()) {
+        patchSettings(patch)
+        setReminderKindStatus(kind, 'enabled')
+        return
+      }
+      try {
+        const access = await requestNotificationAccess()
+        if (access === 'granted') patchSettings(patch)
+        setReminderKindStatus(kind, access === 'granted' ? 'enabled' : access)
+      } catch {
+        setReminderKindStatus(kind, 'failed')
+      }
+    },
+    [patchSettings, setReminderKindStatus],
+  )
+
+  const testDailyReminder = useCallback(
+    async (kind: ReminderKind) => {
+      if (!liveReminderShows) {
+        setReminderKindStatus(kind, 'failed')
+        return
+      }
+      try {
+        const payload = { ...buildRichReminderPayload(liveReminderShows, tracking, { ...settings, theme: actualTheme }, Date.now(), kind), preview: true }
+        const access = await deliverReminder(payload, true)
+        setReminderKindStatus(kind, access === 'granted' ? 'sent' : access)
+      } catch {
+        setReminderKindStatus(kind, 'failed')
+      }
+    },
+    [liveReminderShows, settings, actualTheme, setReminderKindStatus, tracking],
+  )
+
+  useEffect(() => {
+    if (!liveReminderShows) return
+    const dueKinds = REMINDER_KINDS.filter(
+      (kind) =>
+        !reminderSending.current.has(kind) &&
+        isDailyReminderDue(now, settings, kind, readLastReminderDay(kind)),
+    )
+    if (!dueKinds.length) return
+
+    let alive = true
+    dueKinds.forEach((kind) => reminderSending.current.add(kind))
+    ;(async () => {
+      const day = reminderDayKey(now, settings)
+      for (const kind of dueKinds) {
+        try {
+          const payload = buildRichReminderPayload(liveReminderShows, tracking, { ...settings, theme: actualTheme }, now, kind)
+          // 没有符合条件的更新时安静地记为完成，避免每天弹空卡片。
+          if (payload.items.length) {
+            const access = await deliverReminder(payload, false)
+            if (access !== 'granted') {
+              if (alive) setReminderKindStatus(kind, access)
+              markReminderDelivered(kind, day)
+              continue
+            }
+            if (alive) setReminderKindStatus(kind, 'sent')
+          }
+          markReminderDelivered(kind, day)
+        } catch {
+          if (alive) setReminderKindStatus(kind, 'failed')
+          markReminderDelivered(kind, day)
+        } finally {
+          reminderSending.current.delete(kind)
+        }
+      }
+    })()
+    return () => {
+      alive = false
+    }
+  }, [liveReminderShows, now, settings, actualTheme, setReminderKindStatus, tracking])
+
+  const relativeSending = useRef(false)
+  const relativeRetryAt = useRef(0)
+  useEffect(() => {
+    if (!liveReminderShows || relativeSending.current || now < relativeRetryAt.current) return
+    const due = buildEpisodeReminders(liveReminderShows, tracking, { ...settings, theme: actualTheme }, now).filter(x => !episodeReminderSent(x.key))
+    const snoozes = snoozedReminders().filter(x => x.due <= now)
+    if (!due.length && !snoozes.length) return
+    relativeSending.current = true
+    void (async () => {
+      try {
+        if (due.length) {
+          const payload = { ...due[0].payload, items: due.flatMap(x => x.payload.items) }
+          if (await deliverReminder(payload, false) === 'granted') markEpisodeReminders(due.map(x => x.key), now)
+        }
+        for (const snooze of snoozes) {
+          const items = snooze.payload.items.filter(item => {
+            const status = tracking.status[item.id]
+            return snooze.payload.kind === 'watching' ? status === 'watching' && (!item.episodeNumber || (tracking.watched[item.id] ?? 0) < item.episodeNumber) : !['watching','paused','done','dropped'].includes(status) && (settings.otherReminderScope !== 'wish' || status === 'wish')
+          })
+          if (now - snooze.due > 24 * 3600_000 || !items.length) { removeSnooze(snooze.key); continue }
+          if (await deliverReminder({ ...snooze.payload, items, theme: actualTheme, lang: settings.lang, autoHideSeconds: settings.reminderDismissSeconds }, false) === 'granted') removeSnooze(snooze.key)
+        }
+      } catch (error) { console.warn('逐集／稍后提醒失败', error) }
+      finally { relativeSending.current = false; relativeRetryAt.current = Date.now() + 60_000 }
+    })()
+  }, [liveReminderShows, tracking, settings, actualTheme, now])
 
   const exportIcs = useCallback(() => {
     if (effShows) downloadIcs(buildIcs(effShows, tracking, Date.now()))
@@ -609,6 +874,57 @@ export default function App() {
     },
     [],
   )
+  const restoreData = useCallback(async (data: Persisted) => {
+    if (syncingRef.current || drainingRef.current) throw new Error(t('同步正在进行，请稍后恢复。'))
+    const wasPaused = syncPausedRef.current
+    // Pause before asynchronous I/O so a timed sync cannot begin during the snapshot.
+    localStorage.setItem('btt:bgm:sync-paused:v1', 'true')
+    syncPausedRef.current = true; setSyncPaused(true)
+    if (drainTimer.current) window.clearTimeout(drainTimer.current)
+    try {
+      await createBackup(loadPersisted(), 'restore')
+      if (!savePersisted(data)) throw new Error(t('本机存储写入失败，请立即导出备份。'))
+    } catch (error) {
+      syncPausedRef.current = wasPaused; setSyncPaused(wasPaused)
+      if (!wasPaused) localStorage.removeItem('btt:bgm:sync-paused:v1')
+      throw error
+    }
+    setSettings(data.settings); trackingRef.current = data.tracking; setTracking(data.tracking); setOverrides(data.overrides)
+    setContSel(data.filters.cont); setRegSel(data.filters.reg); setRepMin(data.filters.repMin); setSrcSel(data.filters.src); setTagSel(data.filters.tag)
+    setUndoProgress(null)
+  }, [])
+  const resumeSync = useCallback(() => {
+    if (syncPausedRef.current) {
+      if (!window.confirm(t('恢复同步会按本机优先合并，并可能写回 Bangumi 收藏。继续？'))) return
+      syncPausedRef.current = false; setSyncPaused(false); localStorage.removeItem('btt:bgm:sync-paused:v1')
+      const acc = accountRef.current
+      if (acc) { accountRef.current = { ...acc, mergedOnce: false }; setAccount(accountRef.current) }
+    }
+    void doSync(true)
+  }, [doSync])
+  useEffect(() => {
+    if (!isNativeApp()) return
+    let alive = true, dispose: (() => void) | undefined
+    import('@tauri-apps/api/event').then(({ listen }) => listen<ReminderAction>(REMINDER_ACTION_EVENT, async ({ payload: action }) => {
+      if (!['watching','other'].includes(action?.kind) || !Number.isInteger(action?.id)) return
+      try {
+        const payload: RichReminderPayload = JSON.parse(localStorage.getItem(reminderPayloadKey(action.kind)) ?? 'null')
+        const item = payload?.items.find(x => x.id === action.id)
+        const show = liveReminderShows?.find(x => x.id === action.id)
+        if (!item || payload.preview || !show) return
+        if (action.action === 'detail') {
+          setSeasonSel('live'); setShowSettings(false); setShowPending(false); openDetail(show.id)
+          const { getCurrentWindow } = await import('@tauri-apps/api/window')
+          const window = getCurrentWindow(); await window.unminimize(); await window.show(); await window.setFocus()
+        } else if (action.action === 'snooze') snoozeReminder(payload, show.id, Date.now())
+        else if (action.action === 'watched' && trackingRef.current.status[show.id] === 'watching' && item.episodeNumber && item.airAt && item.airAt <= Date.now()) {
+          const aired = airedEps(show, Date.now())
+          if (aired !== undefined && item.episodeNumber <= aired && item.episodeNumber > (trackingRef.current.watched[show.id] ?? 0)) setWatched(show.id, item.episodeNumber)
+        }
+      } catch (error) { console.warn('提醒操作失败', error) }
+    })).then(fn => { if (alive) dispose = fn; else fn() }).catch(error => console.warn('Reminder actions unavailable', error))
+    return () => { alive = false; dispose?.() }
+  }, [liveReminderShows, openDetail, setWatched])
   const jumpToDay = useCallback((offset: number) => {
     withViewTransition(() => {
       setDayCursor(offset)
@@ -636,6 +952,7 @@ export default function App() {
     setDayCursor(0)
     setWeekCursor(0)
     setMonthCursor(null)
+    setBehindOpen(false)
   }, [seasonSel])
 
   const defaultMonth: MonthCursor = useMemo(() => {
@@ -648,6 +965,7 @@ export default function App() {
   // 键盘快捷键:←/→ 翻页,Home 回到今天/本周/本月,D/W/M 切视图
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if (behindOpen || showSettings || showAbout || showPending || (!wide && openId !== null)) return
       const t = e.target as HTMLElement | null
       if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable))
         return
@@ -688,7 +1006,7 @@ export default function App() {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [effView, archive, effMonthCursor, changeView, pageDay, pageWeek, pageMonthTo])
+  }, [behindOpen, showSettings, showAbout, showPending, wide, openId, effView, archive, effMonthCursor, changeView, pageDay, pageWeek, pageMonthTo])
 
   const panelW = effView === 'day' ? settings.panelWidthDay : settings.panelWidth
   const viewProps = { tracking, settings, now, seasonStart, archive, friendsMap, onOpen: openDetail }
@@ -721,16 +1039,58 @@ export default function App() {
           </select>
         </h1>
         {stats && (
-          <span className="stats">
+          <div className="stats">
             {t(archive ? '该季收录' : '本季在播')} <b>{stats.total}</b> {t('部')} · {t('在看')}{' '}
             <b>{stats.watching}</b>
             {stats.behindTotal > 0 && (
-              <>
+              <span className="behind-wrap">
                 {' '}
-                <span className="behind-total">{t('欠了 {n} 集没看', { n: stats.behindTotal })}</span>
-              </>
+                <button
+                  ref={behindTriggerRef}
+                  type="button"
+                  className="behind-total"
+                  aria-expanded={behindOpen}
+                  aria-controls="behind-popover"
+                  aria-haspopup="dialog"
+                  title={t('查看未看明细')}
+                  onClick={() => setBehindOpen((open) => !open)}
+                >
+                  {t('欠了 {n} 集没看', { n: stats.behindTotal })}
+                  <span className="behind-caret" aria-hidden>⌄</span>
+                </button>
+                {behindOpen && (
+                  <span id="behind-popover" className="behind-popover" role="dialog" aria-label={t('未看明细')}>
+                    <span className="behind-popover-head">
+                      <strong>{t('未看明细')}</strong>
+                      <small>{t('共 {n} 集', { n: stats.behindTotal })}</small>
+                    </span>
+                    <span className="behind-list">
+                      {stats.behindItems.map((item) => (
+                        <button
+                          type="button"
+                          className="behind-row"
+                          key={item.show.id}
+                          title={t('打开番剧详情')}
+                          onClick={() => {
+                            openDetail(item.show.id)
+                            setBehindOpen(false)
+                          }}
+                        >
+                          <span className="behind-name">{displayName(item.show)}</span>
+                          <span className="behind-eps">
+                            {item.fromEpisode === item.toEpisode
+                              ? t('第 {n} 集', { n: item.fromEpisode })
+                              : t('第 {from}–{to} 集', { from: item.fromEpisode, to: item.toEpisode })}
+                          </span>
+                        </button>
+                      ))}
+                    </span>
+                    <span className="behind-popover-note">{t('根据“看到第几集”与当前已播进度计算。')}</span>
+                  </span>
+                )}
+              </span>
             )}
-          </span>
+          </div>
         )}
         <span className="spacer" />
         <span className="domains" title={t('Bangumi 各域名登录互不相通,选常用的')}>
@@ -743,12 +1103,12 @@ export default function App() {
         <select
           className="season-sel theme-sel"
           title={t('色彩模式')}
-          value={settings.theme}
-          onChange={(e) => patchSettings({ theme: e.target.value as Settings['theme'] })}
+          value={actualTheme}
+          onChange={(e) => patchSettings({ theme: e.target.value as Settings['theme'], themeMode: 'manual' })}
         >
-          {THEMES.map(([k, label]) => (
-            <option key={k} value={k}>
-              {t(label)}
+          {THEMES.map((theme) => (
+            <option key={theme.id} value={theme.id}>
+              {t(theme.label)}
             </option>
           ))}
         </select>
@@ -770,9 +1130,12 @@ export default function App() {
         <button className="iconbtn" onClick={() => setShowSettings(true)}>
           ⚙ {t('设置')}
         </button>
+        <button className="iconbtn" onClick={() => setShowPending(true)}>{t('待看清单')}</button>
+        {updates.status === 'available' && <button className="iconbtn accent" onClick={() => setShowSettings(true)}>{t('发现新版本')}</button>}
       </header>
 
       <div className="toolbar">
+        {storageError && <span className="err" role="alert">{storageError}</span>}
         <span className="seg">
           {(
             [
@@ -944,7 +1307,7 @@ export default function App() {
           {archive ? t('正在加载 {s} 归档…', { s: fmtSeason(seasonSel) }) : t('正在拉取本季放送表…')}
         </div>
       ) : (
-        <div className="content-row">
+        <div className={`content-row view-${effView}`}>
           <div className="view-area">
             {effView === 'week' && (
               <WeekView
@@ -1031,6 +1394,11 @@ export default function App() {
       )}
 
       {showAbout && <AboutModal onClose={() => setShowAbout(false)} />}
+      {showPending && liveReminderShows && <PendingPanel shows={liveReminderShows} tracking={tracking} settings={settings} now={now} onWatched={setWatched} onStatus={setStatus} onOpen={id => { setShowPending(false); setSeasonSel('live'); openDetail(id) }} onClose={() => setShowPending(false)} />}
+      {undoProgress && <div className="undo-toast" role="status">{t('进度已更新到第 {n} 集', { n: undoProgress.after })}<button className="iconbtn" onClick={() => {
+        if ((trackingRef.current.watched[undoProgress.id] ?? 0) === undoProgress.after) setWatched(undoProgress.id, undoProgress.before, false)
+        else setUndoProgress(null)
+      }}>{t('撤销')}</button><button className="iconbtn" aria-label={t('关闭')} onClick={() => setUndoProgress(null)}>×</button></div>}
 
       {showSettings && (
         <SettingsPanel
@@ -1038,12 +1406,18 @@ export default function App() {
           friendErrors={friendErrors}
           account={account}
           sync={syncState}
+          scheduleDataAt={scheduleDataAt}
           oauth={oauthConf}
+          reminderStatus={reminderStatus}
           onOauthLogin={oauthLogin}
           onLogin={bgmLogin}
           onLogout={bgmLogout}
-          onSyncNow={() => doSync(true)}
+          onSyncNow={resumeSync}
+          syncPaused={syncPaused}
+          features={<DesktopFeatures settings={settings} onChange={patchSettings} updates={updates} onRefreshData={refreshScheduleData} dataBusy={dataBusy} dataMessage={dataMessage} dataSource={dataSource} onRestore={restoreData} backupError={storageError || backupError} syncPaused={syncPaused} />}
           onChange={patchSettings}
+          onReminderEnabled={setDailyReminderEnabled}
+          onTestReminder={testDailyReminder}
           onExportIcs={exportIcs}
           onClose={() => setShowSettings(false)}
         />

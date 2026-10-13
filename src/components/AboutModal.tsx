@@ -1,7 +1,8 @@
 import { useEffect } from 'react'
 import { getLang, t, type Lang } from '../lib/i18n'
 
-const REPO = 'https://github.com/Miint-Sunny/Bangumi_ClassTimeTable'
+const REPO = 'https://github.com/MASUKA2018/Bangumi_ClassTimeTable'
+const UPSTREAM_REPO = 'https://github.com/Miint-Sunny/Bangumi_ClassTimeTable'
 
 /** 更新历史:面向用户的里程碑(按 commit 提炼),每条自带四语言 */
 interface LogEntry {
@@ -10,6 +11,96 @@ interface LogEntry {
 }
 
 const CHANGELOG: LogEntry[] = [
+  {
+    d: '2026-10-12',
+    x: {
+      'zh-Hans': '桌面端 beta 0.4.0:新增独立更新中心、放送前后提醒与快捷操作、待看清单及进度撤销、7 天自动备份与安全恢复、可同步的搁置状态、显示密度与字体封面调整及跟随系统主题',
+      'zh-Hant': '桌面端 beta 0.4.0:新增獨立更新中心、放送前後提醒與快捷操作、待看清單及進度復原、7 天自動備份與安全還原、可同步的擱置狀態、顯示密度與字體封面調整及跟隨系統主題',
+      ja: 'デスクトップ beta 0.4.0:更新センター、放送前後通知と操作ボタン、未視聴一覧と進捗の取り消し、7日分のバックアップと安全な復元、保留の同期、表示密度・文字・表紙サイズとOSテーマ連動を追加',
+      en: 'Desktop beta 0.4.0: separate app/data updates, before/after-air reminders with actions, watch queue and progress undo, 7-day backups and safe restore, synced on-hold status, density/font/cover controls and live system themes',
+    },
+  },
+  {
+    d: '2026-10-11',
+    x: {
+      'zh-Hans': '桌面端 beta 0.3.8:更新安装包内置放送校正与逐集时间至 2026-10-11；保留 0.3.7 的欠番明细、主题色板与标题栏配色',
+      'zh-Hant': '桌面端 beta 0.3.8:更新安裝包內建放送校正與逐集時間至 2026-10-11；保留 0.3.7 的未看集數明細、主題色板與標題列配色',
+      ja: 'デスクトップ beta 0.3.8:内蔵の放送補正・話数別時刻を 2026-10-11 版に更新。0.3.7 の未視聴内訳・テーマ・タイトルバー配色を維持',
+      en: 'Desktop beta 0.3.8: refreshes bundled broadcast corrections and episode times through 2026-10-11; retains 0.3.7 backlog details, theme previews and title-bar colors',
+    },
+  },
+  {
+    d: '2026-10-09',
+    x: {
+      'zh-Hans': '桌面端 beta 0.3.7:顶栏未看集数可展开番剧与集数明细；系统标题栏跟随主题，新增 Nord、Dracula、Catppuccin 与 Solarized 配色及色板预览',
+      'zh-Hant': '桌面端 beta 0.3.7:頂欄未看集數可展開番劇與集數明細；系統標題列跟隨主題，新增 Nord、Dracula、Catppuccin 與 Solarized 配色及色板預覽',
+      ja: 'デスクトップ beta 0.3.7:未視聴話数の作品別内訳を追加。タイトルバーをテーマに合わせ、Nord・Dracula・Catppuccin・Solarized と色見本を追加',
+      en: 'Desktop beta 0.3.7: per-show unwatched episode details, native title-bar theme matching, and Nord, Dracula, Catppuccin and Solarized palettes with previews',
+    },
+  },
+  {
+    d: '2026-10-06',
+    x: {
+      'zh-Hans': '桌面端 beta 0.3.6:设置新增开机自动启动；系统登录后可静默进入托盘，按设定时间继续发送番剧提醒',
+      'zh-Hant': '桌面端 beta 0.3.6:設定新增開機自動啟動；登入系統後可靜默進入系統匣，依設定時間繼續傳送番劇提醒',
+      ja: 'デスクトップ beta 0.3.6:自動起動設定を追加。OSログイン後はバックグラウンドでトレイに常駐し、設定時刻に通知を継続',
+      en: 'Desktop beta 0.3.6: adds launch-at-startup; after sign-in the app can start silently in the tray and keep scheduled reminders running',
+    },
+  },
+  {
+    d: '2026-09-24',
+    x: {
+      'zh-Hans': '桌面端 beta 0.3.5:修复 Windows 宽窗口仍被限制在 1440px、课表无谓出现横向滚动条的问题；窗口拉大时课表列距自动扩展，窄窗口自动收窄或改用弹窗侧栏',
+      'zh-Hant': '桌面端 beta 0.3.5:修復 Windows 寬視窗仍被限制在 1440px、課表無謂出現橫向捲軸的問題；視窗拉大時課表欄距自動延展，窄視窗自動收窄或改用彈窗側欄',
+      ja: 'デスクトップ beta 0.3.5:Windows の広いウィンドウでも 1440px に制限され横スクロールが出る問題を修正。拡大時は列間隔を自動調整し、狭い時はサイドバーを縮小またはモーダル表示',
+      en: 'Desktop beta 0.3.5: removes the 1440px cap that caused needless horizontal scrolling on wide Windows layouts; timetable columns now expand with the window and the sidebar adapts on narrower sizes',
+    },
+  },
+  {
+    d: '2026-09-20',
+    x: {
+      'zh-Hans': '桌面端 beta 0.3.4:提醒窗口调整为原尺寸的 75%，封面、标题、时间、进度与切换按钮保持完整并等比缩放',
+      'zh-Hant': '桌面端 beta 0.3.4:提醒視窗調整為原尺寸的 75%，封面、標題、時間、進度與切換按鈕保持完整並等比縮放',
+      ja: 'デスクトップ beta 0.3.4:通知ウィンドウを元の 75% に調整。表紙・題名・時刻・進捗・切替ボタンはそのまま等比縮小',
+      en: 'Desktop beta 0.3.4: resizes the reminder window to 75% while preserving and proportionally scaling all cover, title, time, progress, and navigation content',
+    },
+  },
+  {
+    d: '2026-09-20',
+    x: {
+      'zh-Hans': '桌面端 beta 0.3.3:修复 Windows 提醒卡片被窗口状态恢复与显示缩放影响、错误出现在屏幕中部的问题；现在始终按任务栏工作区定位到右下角',
+      'zh-Hant': '桌面端 beta 0.3.3:修復 Windows 提醒卡片受視窗狀態還原與顯示縮放影響、錯誤出現在螢幕中部的問題；現在固定依工作列區域定位於右下角',
+      ja: 'デスクトップ beta 0.3.3:Windows のウィンドウ状態復元と表示倍率により通知カードが画面中央に出る問題を修正。タスクバーを除く領域の右下に固定',
+      en: 'Desktop beta 0.3.3: fixes Windows reminder cards appearing near the center because of restored window state and display scaling; cards now anchor to the work area bottom-right',
+    },
+  },
+  {
+    d: '2026-09-15',
+    x: {
+      'zh-Hans': '桌面端 beta 0.3.2:修复当季实时日历返回 HTTP 封面，导致安装版拦截图片并显示“番”字的问题；旧缓存也会自动转换为 HTTPS',
+      'zh-Hant': '桌面端 beta 0.3.2:修復當季即時日曆返回 HTTP 封面，導致安裝版攔截圖片並顯示「番」字的問題；舊快取也會自動轉換為 HTTPS',
+      ja: 'デスクトップ beta 0.3.2:今期のリアルタイム番組表が返す HTTP 表紙を HTTPS に変換。インストール版で「番」と表示される問題を修正し、旧キャッシュも自動変換',
+      en: 'Desktop beta 0.3.2: upgrades current-season HTTP cover URLs to HTTPS so installed apps no longer replace them with placeholders; legacy cache entries are converted too',
+    },
+  },
+  {
+    d: '2026-09-14',
+    x: {
+      'zh-Hans': '桌面端 beta 0.3.1:移除封面补全的 40 部上限，优先补全在看/想看并限速补齐全部课表；封面加载失败时显示占位符',
+      'zh-Hant': '桌面端 beta 0.3.1:移除封面補全的 40 部上限，優先補全在看/想看並限速補齊全部課表；封面載入失敗時顯示預留圖',
+      ja: 'デスクトップ beta 0.3.1:表紙補完の40作品制限を撤廃。視聴中/見たい作品を優先し、全番組の表紙を順次補完。読み込み失敗時はプレースホルダーを表示',
+      en: 'Desktop beta 0.3.1: removed the 40-show cover limit, prioritizes Watching/Wish titles, then rate-limits completion for the whole timetable; failed images show a placeholder',
+    },
+  },
+  {
+    d: '2026-09-14',
+    x: {
+      'zh-Hans': '桌面端 beta 0.3.0:在看/未在看提醒可分别定时;右下角主题卡片展示封面、标题、放送时间与集数;关闭或最小化后驻留托盘',
+      'zh-Hant': '桌面端 beta 0.3.0:在看/未在看提醒可分別定時;右下角主題卡片展示封面、標題、放送時間與集數;關閉或最小化後常駐系統匣',
+      ja: 'デスクトップ beta 0.3.0:視聴中/その他の通知を個別設定。右下カードに表紙・題名・放送時刻・話数を表示。閉じる/最小化後もトレイに常駐',
+      en: 'Desktop beta 0.3.0: separate Watching/other reminder schedules; rich bottom-right cards; close or minimize to keep running in the system tray',
+    },
+  },
   {
     d: '2026-08-05',
     x: {
@@ -169,7 +260,7 @@ export default function AboutModal({ onClose }: { onClose: () => void }) {
           <h2>{t('番组课表')}</h2>
           <div className="tagline">{t('像课表一样追番。')}</div>
           <div className="ver">
-            {t('版本 {v}', { v: __APP_VERSION__ })} · bgmtimetable.com · {t('以 MIT 协议开源')}
+            {t('版本 {v}', { v: __APP_VERSION__ })} · {t('基于 MIT 开源项目')}
           </div>
         </div>
 
@@ -183,6 +274,11 @@ export default function AboutModal({ onClose }: { onClose: () => void }) {
           <a className="iconbtn" href={`${REPO}/issues/new`} target="_blank" rel="noreferrer" title={t('用得不顺、数据不对、想要新功能,都欢迎')}>
             {t('🐛 反馈问题')}
           </a>
+        </div>
+
+        <div className="set-note about-credit">
+          {t('原项目作者：{author}；客户端二次开发：{maintainer}。', { author: 'Miint-Sunny', maintainer: 'MASUKA2018' })}{' '}
+          <a href={UPSTREAM_REPO} target="_blank" rel="noreferrer">Miint-Sunny / Bangumi_ClassTimeTable</a>
         </div>
 
         <div className="set-note about-credit">

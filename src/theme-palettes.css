@@ -1,0 +1,81 @@
+/* Adapted for timetable UI from the official Nord, Dracula, Catppuccin and
+   Solarized palettes. Source links and attribution are in README.md. */
+:root[data-theme='nord'] {
+  --bg: #2e3440; --card: #3b4252;
+  --border: #5d6980; --border-soft: #434c5e;
+  --text: #eceff4; --text-soft: #d8dee9; --text-subtle: #a7b3c7;
+  --axis-bg: #343c4b; --chip-bg: #434c5e;
+  --today-bg: #354957; --band-night: #303848;
+  --pink: #88c0d0; --pink-strong: #a9d8e5; --pink-soft: #405b6b;
+  --blue: #81a1c1; --link: #88c0d0; --link-hover: #c2e6ef;
+  --gold: #ebcb8b; --green: #a3be8c; --red: #e5a0a6; --red-bg: #543b49;
+  --shadow-hover: 0 2px 10px rgba(136, 192, 208, 0.25);
+  --overlay: rgba(21, 26, 35, 0.72); --accent-ink: #2e3440;
+}
+
+:root[data-theme='dracula'] {
+  --bg: #282a36; --card: #343746;
+  --border: #6272a4; --border-soft: #44475a;
+  --text: #f8f8f2; --text-soft: #d1d4e0; --text-subtle: #a4afce;
+  --axis-bg: #21222c; --chip-bg: #44475a;
+  --today-bg: #3e304f; --band-night: #242334;
+  --pink: #bd93f9; --pink-strong: #d7b9ff; --pink-soft: #493857;
+  --blue: #8be9fd; --link: #8be9fd; --link-hover: #c2f4ff;
+  --gold: #f1fa8c; --green: #50fa7b; --red: #ff79c6; --red-bg: #54364d;
+  --shadow-hover: 0 2px 10px rgba(189, 147, 249, 0.3);
+  --overlay: rgba(25, 26, 33, 0.78); --accent-ink: #282a36;
+}
+
+:root[data-theme='catppuccin-mocha'] {
+  --bg: #1e1e2e; --card: #313244;
+  --border: #585b70; --border-soft: #45475a;
+  --text: #cdd6f4; --text-soft: #bac2de; --text-subtle: #a6adc8;
+  --axis-bg: #181825; --chip-bg: #313244;
+  --today-bg: #352b45; --band-night: #232033;
+  --pink: #cba6f7; --pink-strong: #f5c2e7; --pink-soft: #493750;
+  --blue: #89b4fa; --link: #89b4fa; --link-hover: #b4befe;
+  --gold: #f9e2af; --green: #a6e3a1; --red: #f38ba8; --red-bg: #4c3046;
+  --shadow-hover: 0 2px 10px rgba(203, 166, 247, 0.28);
+  --overlay: rgba(17, 17, 27, 0.8); --accent-ink: #1e1e2e;
+}
+
+:root[data-theme='catppuccin-latte'] {
+  color-scheme: light;
+  --bg: #eff1f5; --card: #e6e9ef;
+  --border: #bcc0cc; --border-soft: #ccd0da;
+  --text: #4c4f69; --text-soft: #5c5f77; --text-subtle: #6c6f85;
+  --axis-bg: #e6e9ef; --chip-bg: #dce0e8;
+  --today-bg: #e7def6; --band-night: #e9e5f3;
+  --pink: #8839ef; --pink-strong: #7340b6; --pink-soft: #e1d8f4;
+  --blue: #1e66f5; --link: #1e66f5; --link-hover: #8839ef;
+  --gold: #946517; --green: #287d21; --red: #d20f39; --red-bg: #f7dce4;
+  --shadow-hover: 0 2px 10px rgba(136, 57, 239, 0.2);
+  --overlay: rgba(76, 79, 105, 0.45); --accent-ink: #ffffff;
+}
+
+:root[data-theme='solarized-dark'] {
+  --bg: #002b36; --card: #073642;
+  --border: #586e75; --border-soft: #28505a;
+  --text: #93a1a1; --text-soft: #839496; --text-subtle: #7e9195;
+  --axis-bg: #00252f; --chip-bg: #114450;
+  --today-bg: #164848; --band-night: #002833;
+  --pink: #2aa198; --pink-strong: #5ac4b6; --pink-soft: #1a514e;
+  --blue: #57ade2; --link: #57ade2; --link-hover: #8dc9ec;
+  --gold: #d6ac3c; --green: #a3b942; --red: #f07167; --red-bg: #4b3438;
+  --shadow-hover: 0 2px 10px rgba(42, 161, 152, 0.3);
+  --overlay: rgba(0, 23, 30, 0.78); --accent-ink: #002b36;
+}
+
+:root[data-theme='solarized-light'] {
+  color-scheme: light;
+  --bg: #fdf6e3; --card: #eee8d5;
+  --border: #c9c1ac; --border-soft: #ddd6c4;
+  --text: #586e75; --text-soft: #657b83; --text-subtle: #6c7e80;
+  --axis-bg: #eee8d5; --chip-bg: #e3dcc8;
+  --today-bg: #e4e9d7; --band-night: #eee9df;
+  --pink: #268bd2; --pink-strong: #216fa2; --pink-soft: #d7e8eb;
+  --blue: #216fa2; --link: #216fa2; --link-hover: #6c71c4;
+  --gold: #876500; --green: #677800; --red: #b92825; --red-bg: #f6ddd3;
+  --shadow-hover: 0 2px 10px rgba(38, 139, 210, 0.2);
+  --overlay: rgba(88, 110, 117, 0.46); --accent-ink: #002b36;
+}

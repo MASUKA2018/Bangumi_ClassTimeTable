@@ -6,6 +6,7 @@
  * App 渲染最上方调用 setLang(settings.lang),React 自上而下渲染保证子组件取到新语言。
  */
 
+import { FEATURE_STRINGS } from './featureStrings'
 export type Lang = 'zh-Hans' | 'zh-Hant' | 'ja' | 'en'
 
 export const LANGS: [Lang, string][] = [
@@ -31,6 +32,7 @@ export function detectLang(): Lang {
 
 // value = [繁中, 日本語, EN]
 const DICT: Record<string, [string, string, string]> = {
+  ...FEATURE_STRINGS,
   // ── 顶栏 / 工具栏 ──
   番组课表: ['番組課表', '番組時間割', 'Bangumi Timetable'],
   '(当季)': ['(當季)', '(今期)', ' (current)'],
@@ -39,6 +41,16 @@ const DICT: Record<string, [string, string, string]> = {
   部: ['部', '作品', ''],
   在看: ['在看', '視聴中', 'Watching'],
   '欠了 {n} 集没看': ['欠了 {n} 集沒看', '未視聴 {n} 話', '{n} eps unwatched'],
+  查看未看明细: ['查看未看明細', '未視聴の内訳を見る', 'View unwatched details'],
+  未看明细: ['未看明細', '未視聴の内訳', 'Unwatched details'],
+  '共 {n} 集': ['共 {n} 集', '合計 {n} 話', '{n} episodes total'],
+  '第 {from}–{to} 集': ['第 {from}–{to} 集', '第 {from}～{to} 話', 'Episodes {from}–{to}'],
+  打开番剧详情: ['開啟番劇詳情', '作品の詳細を開く', 'Open show details'],
+  '根据“看到第几集”与当前已播进度计算。': [
+    '根據「看到第幾集」與目前已播進度計算。',
+    '「何話まで見たか」と現在の放送済み話数から算出しています。',
+    'Calculated from your watched-through episode and the currently aired episode.',
+  ],
   切换季度: ['切換季度', 'シーズン切替', 'Switch season'],
   色彩模式: ['色彩模式', 'カラーテーマ', 'Color theme'],
   语言: ['語言', '言語', 'Language'],
@@ -308,12 +320,84 @@ const DICT: Record<string, [string, string, string]> = {
   深色: ['深色', 'ダーク', 'Dark'],
   高对比深色: ['高對比深色', 'ハイコントラスト', 'High contrast'],
   白色: ['白色', 'ライト', 'Light'],
+  'Nord 极地': ['Nord 極地', 'Nord', 'Nord'],
+  'Solarized 深色': ['Solarized 深色', 'Solarized ダーク', 'Solarized Dark'],
+  'Solarized 浅色': ['Solarized 淺色', 'Solarized ライト', 'Solarized Light'],
+  开机启动: ['開機自動啟動', '自動起動', 'Launch at startup'],
+  自动启动: ['自動啟動', 'オン', 'On'],
+  不自动启动: ['不要自動啟動', 'オフ', 'Off'],
+  '正在读取…': ['正在讀取…', '読み込み中…', 'Loading…'],
+  '登录系统后静默启动并驻留托盘，按设置继续发送提醒。': [
+    '登入系統後靜默啟動並常駐系統匣，依設定繼續傳送提醒。',
+    'OSへのログイン時にバックグラウンドで起動してトレイに常駐し、設定どおり通知します。',
+    'Starts silently in the tray after sign-in and continues reminders on schedule.',
+  ],
+  '无法读取或修改开机启动设置，请稍后重试。': [
+    '無法讀取或修改開機自動啟動設定，請稍後再試。',
+    '自動起動の設定を読み取り／変更できませんでした。後でもう一度お試しください。',
+    'Could not read or change the startup setting. Try again later.',
+  ],
   周起始: ['週起始', '週の開始', 'Week starts'],
   深夜表记: ['深夜表記', '深夜表記', 'Late night'],
   凌晨归前日: ['凌晨歸前日', '深夜は前日扱い', 'Fold late night'],
   按实际日期: ['按實際日期', '実際の日付', 'Actual date'],
   '{h}:00 前(表记到 {e}:59)': ['{h}:00 前(表記到 {e}:59)', '{h}:00まで(〜{e}:59表記)', 'Before {h}:00 (up to {e}:59)'],
   几点之前算前一天的深夜档: ['幾點之前算前一天的深夜檔', '何時までを前日の深夜枠とするか', 'Cutoff hour for late night'],
+  在看提醒: ['在看提醒', '「見ている」通知', 'Watching reminder'],
+  未在看提醒: ['未在看提醒', '未フォロー通知', 'Other reminder'],
+  开启提醒: ['開啟提醒', '通知オン', 'Turn on'],
+  关闭提醒: ['關閉提醒', '通知オフ', 'Turn off'],
+  提醒时间: ['提醒時間', '通知時刻', 'Reminder time'],
+  预览提醒: ['預覽提醒', '通知をプレビュー', 'Preview'],
+  '当天更新的“在看”番剧使用带封面的主题卡片提醒。': [
+    '當天更新的「在看」番劇使用帶封面的主題卡片提醒。',
+    '今日更新される「見ている」作品を、表紙付きテーマカードで通知します。',
+    'Shows marked Watching use a themed card with cover art.',
+  ],
+  '当天更新但未标记“在看”的番剧单独提醒。': [
+    '當天更新但未標記「在看」的番劇單獨提醒。',
+    '今日更新される「見ている」以外の作品を別に通知します。',
+    'Today’s shows not marked Watching are notified separately.',
+  ],
+  '两类提醒可使用不同时间；客户端需要保持运行。': [
+    '兩類提醒可使用不同時間；用戶端需要保持執行。',
+    '2種類の通知は別々の時刻に設定できます。アプリは起動したままにしてください。',
+    'Each reminder can use a different time; keep the app running.',
+  ],
+  提醒已开启: ['提醒已開啟', '通知をオンにしました', 'Reminder enabled'],
+  提醒已显示: ['提醒已顯示', '通知を表示しました', 'Reminder displayed'],
+  '通知权限被拒绝,请在系统设置中允许番组课表发送通知。': [
+    '通知權限被拒絕,請在系統設定中允許番組課表傳送通知。',
+    '通知が拒否されました。システム設定で番組時間割の通知を許可してください。',
+    'Notifications are blocked. Allow Bangumi Timetable notifications in system settings.',
+  ],
+  '当前环境不支持系统通知。': ['目前環境不支援系統通知。', 'この環境はシステム通知に対応していません。', 'System notifications are not supported here.'],
+  '显示提醒失败,请稍后重试。': ['顯示提醒失敗,請稍後再試。', '通知を表示できませんでした。後でもう一度お試しください。', 'Could not display the reminder. Try again later.'],
+  今日在看更新: ['今日在看更新', '今日の「見ている」更新', 'Watching today'],
+  今日未在看番剧: ['今日未在看番劇', '今日の未フォロー作品', 'Other shows today'],
+  '今天没有“在看”番剧更新。': ['今天沒有「在看」番劇更新。', '今日は「見ている」作品の更新がありません。', 'No Watching updates today.'],
+  '今天没有其他番剧更新。': ['今天沒有其他番劇更新。', '今日はほかの作品の更新がありません。', 'No other anime updates today.'],
+  时间未定: ['時間未定', '時刻未定', 'Time TBD'],
+  集数未定: ['集數未定', '話数未定', 'Episode TBD'],
+  '更新至第 {n} 集': ['更新至第 {n} 集', '第{n}話を更新', 'Episode {n} update'],
+  '更新至第 {a}-{b} 集': ['更新至第 {a}-{b} 集', '第{a}〜{b}話を更新', 'Episodes {a}–{b} update'],
+  当天放送时间: ['當天放送時間', '本日の放送時刻', 'Airs today'],
+  更新进度: ['更新進度', '更新話数', 'Update'],
+  '今天的“在看”番剧已加入课表,记得准时收看。': [
+    '今天的「在看」番劇已加入課表,記得準時收看。',
+    '今日の「見ている」作品です。放送をお見逃しなく。',
+    'Your Watching update is on today’s timetable.',
+  ],
+  '今天还有这些尚未标记“在看”的番剧更新。': [
+    '今天還有這些尚未標記「在看」的番劇更新。',
+    '今日は「見ている」未登録の作品も更新されます。',
+    'These shows not marked Watching also update today.',
+  ],
+  切换番剧: ['切換番劇', '作品を切り替え', 'Switch show'],
+  上一部: ['上一部', '前の作品', 'Previous'],
+  下一部: ['下一部', '次の作品', 'Next'],
+  '{n} 部': ['{n} 部', '{n}作品', '{n} show(s)'],
+  '另有 {n} 部': ['另有 {n} 部', 'ほか{n}作品', '{n} more'],
   好友: ['好友', 'フレンド', 'Friends'],
   'bgm 用户名(个人页 URL 尾段)': ['bgm 使用者名(個人頁 URL 尾段)', 'bgmユーザー名(プロフィールURL末尾)', 'bgm username (end of profile URL)'],
   添加: ['新增', '追加', 'Add'],
@@ -363,15 +447,20 @@ const DICT: Record<string, [string, string, string]> = {
     '“Sign in with Bangumi” opens bgm.tv authorization (you must be logged in on bgm.tv). Tokens last 7 days and auto-renew. ',
   ],
   也可在: ['也可在', 'または', 'Or create a personal token at '],
-  '生成个人令牌(建议选一年有效期)粘贴连接。令牌只保存在本机浏览器,不进备份文件,可随时吊销。 连接后:应用内的追番改动即时写回 bgm.tv;bgm.tv 侧的改动每半小时拉取合并(以 bgm 为准)。 首次连接会双向合并(状态本机优先、进度取较大值)。bgm 的「搁置」在课表按未追显示; 本地取消追番不会删除 bgm 收藏。': [
-    '生成個人權杖(建議選一年有效期)貼上連接。權杖只保存在本機瀏覽器,不進備份檔案,可隨時吊銷。 連接後:應用內的追番改動即時寫回 bgm.tv;bgm.tv 側的改動每半小時拉取合併(以 bgm 為準)。 首次連接會雙向合併(狀態本機優先、進度取較大值)。bgm 的「擱置」在課表按未追顯示; 本地取消追番不會刪除 bgm 收藏。',
-    'で個人トークンを発行(有効期間1年推奨)して貼り付け。トークンはこの端末にのみ保存され、バックアップには含まれず、いつでも失効できます。接続後:アプリ内の変更は即時bgm.tvへ反映、bgm.tv側の変更は30分ごとに取得・マージ(bgm優先)。初回は双方向マージ(ステータスは端末優先・進捗は大きい方)。bgmの「保留」は未追跡扱い。ローカルで追跡解除してもbgmの収蔵は消えません。',
-    'and paste it here (1-year validity recommended). The token stays in this browser only, is excluded from backups, and can be revoked anytime. Once connected: in-app changes push to bgm.tv instantly; bgm-side changes merge every 30 min (bgm wins). First connect does a two-way merge (local status wins, higher progress wins). bgm’s “on hold” shows as untracked; untracking locally never deletes bgm collections.',
+  '生成个人令牌(建议选一年有效期)粘贴连接。令牌只保存在本机浏览器,不进备份文件,可随时吊销。 连接后:应用内的追番改动即时写回 bgm.tv;bgm.tv 侧的改动每半小时拉取合并(以 bgm 为准)。 首次连接会双向合并(状态本机优先、进度取较大值)。bgm 的「搁置」保留进度并暂停提醒; 本地取消追番不会删除 bgm 收藏。': [
+    '生成個人權杖(建議選一年有效期)貼上連接。權杖只保存在本機瀏覽器,不進備份檔案,可隨時吊銷。連接後應用內改動寫回 bgm.tv，雲端改動每半小時合併。首次連接本機狀態優先、進度取較大值。「擱置」保留進度並暫停提醒；本機取消追番不會刪除雲端收藏。',
+    'で個人トークンを発行(有効期間1年推奨)して貼り付け。端末にのみ保存されバックアップには含まれません。アプリ内の変更はbgm.tvへ反映、クラウドの変更は30分ごとにマージ。初回は端末の状態と大きい方の進捗を優先。「保留」は進捗を保持して通知を停止。端末で追跡解除してもクラウドの収蔵は削除されません。',
+    'and paste it here (1-year validity recommended). The token stays on this device and is excluded from backups. In-app changes push to bgm.tv; cloud changes merge every 30 min. First connection prefers local status and higher progress. On hold retains progress and pauses reminders; untracking locally never deletes cloud collections.',
   ],
   '数据来源:Bangumi 官方 API(每 6 小时缓存)· bangumi-data 数据集(jsDelivr CDN,每日缓存)· 每集精确时刻来自': [
     '資料來源:Bangumi 官方 API(每 6 小時快取)· bangumi-data 資料集(jsDelivr CDN,每日快取)· 每集精確時刻來自',
     'データ:Bangumi公式API(6時間キャッシュ)・bangumi-data(jsDelivr CDN・日次キャッシュ)・各話の正確な時刻は',
     'Data: official Bangumi API (6 h cache) · bangumi-data via jsDelivr (daily cache) · per-episode exact times from ',
+  ],
+  '逐集时间更新:{time}': [
+    '逐集時間更新:{time}',
+    '各話時刻の更新:{time}',
+    'Episode times updated: {time}',
   ],
   '(经其开发者 API 每日同步,致谢其编辑者社区)· 可选的 yuc.wiki 增强数据由 AI 辅助的 refresh-data skill 人工触发生成,不做自动抓取。': [
     '(經其開發者 API 每日同步,致謝其編輯者社群)· 可選的 yuc.wiki 增強資料由 AI 輔助的 refresh-data skill 人工觸發生成,不做自動抓取。',
@@ -405,7 +494,8 @@ const DICT: Record<string, [string, string, string]> = {
     'データは Bangumi・bangumi-data・番組維基(bgm.wiki)・yuc.wiki より。各コミュニティに感謝します。',
     'Data from Bangumi, bangumi-data, bgm.wiki and yuc.wiki — thanks to their maintainers.',
   ],
-  '以 MIT 协议开源': ['以 MIT 授權開源', 'MITライセンスで公開', 'Open source under MIT'],
+  '基于 MIT 开源项目': ['基於 MIT 開源專案', 'MITオープンソースプロジェクトを基に開発', 'Based on an MIT open-source project'],
+  '原项目作者：{author}；客户端二次开发：{maintainer}。': ['原專案作者：{author}；用戶端二次開發：{maintainer}。', '原作者：{author}。クライアントの派生開発：{maintainer}。', 'Original project by {author}; derivative client development by {maintainer}.'],
 }
 
 /** 取译文;缺译回落简中。{k} 占位符统一替换。 */

@@ -3,6 +3,13 @@ import type { CalItem } from './api'
 import type { BdBundle } from './bangumiData'
 
 import type { AirFix } from '../types'
+import { isNativeApp, remoteFetch } from './native'
+
+const REMOTE_ENHANCE =
+  import.meta.env.VITE_ENHANCE_URL?.trim() ||
+  'https://cdn.jsdelivr.net/gh/MASUKA2018/Bangumi_ClassTimeTable@main/public/data/enhance.json'
+const REMOTE_CACHE_KEY = 'btt:cache:enhance:remote:v1'
+const REMOTE_TTL = 12 * 3600_000
 
 /** yuc 增强数据(public/data/enhance.json,由 refresh-data skill 生成) */
 export interface EnhanceEntry {
@@ -18,14 +25,58 @@ export interface EnhanceData {
   entries: EnhanceMap
   /** 产地判定(scripts/mark_region.py):非 ja 前缀 = 非日本作品(cn/us/xx…) */
   regions: Record<string, string>
+  /** bgm.wiki 逐集时间的最近同步时刻。 */
+  syncedAt?: string
+  source?: 'bundled' | 'remote' | 'cache'
+  checkedAt?: number
+  stale?: boolean
 }
 
-export async function fetchEnhance(): Promise<EnhanceData> {
+function normalizeEnhance(raw: any, source: EnhanceData['source']): EnhanceData {
+  const entries = raw?.entries && typeof raw.entries === 'object' ? raw.entries : {}
+  if (Object.keys(entries).length < 10) throw new Error('enhance.json 条目数量异常')
+  return {
+    entries,
+    regions: raw?.regions && typeof raw.regions === 'object' ? raw.regions : {},
+    syncedAt: raw.bgmwiki_synced_at ?? raw.generated_at,
+    source,
+  }
+}
+
+function readRemoteCache(): { t: number; v: EnhanceData } | null {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(REMOTE_CACHE_KEY) ?? 'null')
+    return parsed && typeof parsed.t === 'number' && parsed.v?.entries ? parsed : null
+  } catch {
+    return null
+  }
+}
+
+export async function fetchEnhance(force = false): Promise<EnhanceData> {
+  // 原生安装包里的 JSON 会随版本老化。桌面/Android 每 12 小时检查公开 CDN，
+  // 失败时使用过期缓存；浏览器站点继续读取同源文件。
+  if (isNativeApp()) {
+    const cached = readRemoteCache()
+    if (!force && cached && Date.now() - cached.t < REMOTE_TTL) return { ...cached.v, source: 'cache', checkedAt: cached.t }
+    try {
+      const resp = await remoteFetch(REMOTE_ENHANCE, { cache: 'no-store' })
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
+      const value = { ...normalizeEnhance(await resp.json(), 'remote'), checkedAt: Date.now() }
+      try {
+        localStorage.setItem(REMOTE_CACHE_KEY, JSON.stringify({ t: Date.now(), v: value }))
+      } catch {}
+      return value
+    } catch (error) {
+      if (force) throw error
+      if (cached) return { ...cached.v, source: 'cache', stale: true, checkedAt: cached.t }
+      console.warn('在线逐集时间更新失败，改用安装包内置数据', error)
+    }
+  }
+
   try {
     const resp = await fetch(`${import.meta.env.BASE_URL}data/enhance.json`)
     if (!resp.ok) return { entries: {}, regions: {} }
-    const data = await resp.json()
-    return { entries: data.entries ?? {}, regions: data.regions ?? {} }
+    return normalizeEnhance(await resp.json(), 'bundled')
   } catch {
     return { entries: {}, regions: {} }
   }

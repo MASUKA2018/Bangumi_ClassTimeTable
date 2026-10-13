@@ -73,5 +73,5 @@ jobs:
           git pull --rebase origin main
           git push
 
-      # This repository only publishes data and client installers.
-      # Committing enhanced broadcast data is the final step; no website deployment.
+      # Data sync is independent of desktop builds and does not deploy a website.
+      # Committing enhanced broadcast data is the final step.

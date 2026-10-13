@@ -10,9 +10,10 @@
  *  - 应用内改动 → 立即入队,防抖后逐条写回(bgm API 无删除收藏,本地取消追番不回写)
  *  - bgm 侧改动 → 定期拉取合并,以 bgm 为准(队列里还没推出去的条目除外)
  *  - 首次连接 → 双向合并:状态本机优先、进度取较大值,差异推回 bgm
- *  - bgm 的"搁置"课表不建模:按未追显示,本地进度保留
+ *  - 搁置与 Bangumi 收藏 type=4 双向同步，保留进度
  */
 import type { BgmAccount, CollectMemo, Tracking, WatchStatus } from '../types'
+import { remoteFetch } from './native'
 import { clearCacheKey, readCache, writeCache } from './api'
 
 const API = 'https://api.bgm.tv'
@@ -21,8 +22,8 @@ const QUEUE_KEY = 'btt:bgm:queue'
 /** 「看过」全量可达上千条,只拉到最早归档季(2024Q4)之前一点为止 */
 const DONE_CUTOFF = '2024-09-01'
 
-export const STATUS_TO_TYPE: Record<WatchStatus, number> = { wish: 1, done: 2, watching: 3, dropped: 5 }
-const TYPE_TO_STATUS: Record<number, WatchStatus> = { 1: 'wish', 2: 'done', 3: 'watching', 5: 'dropped' }
+export const STATUS_TO_TYPE: Record<WatchStatus, number> = { wish: 1, done: 2, watching: 3, paused: 4, dropped: 5 }
+const TYPE_TO_STATUS: Record<number, WatchStatus> = { 1: 'wish', 2: 'done', 3: 'watching', 4: 'paused', 5: 'dropped' }
 
 export function loadAccount(): BgmAccount | null {
   try {
@@ -43,7 +44,7 @@ export function saveAccount(a: BgmAccount | null) {
 export class BgmAuthError extends Error {}
 
 async function authed(token: string, path: string, init?: RequestInit): Promise<Response> {
-  const resp = await fetch(API + path, {
+  const resp = await remoteFetch(API + path, {
     ...init,
     headers: { Authorization: `Bearer ${token}`, ...(init?.headers ?? {}) },
   })
@@ -69,7 +70,7 @@ export interface RemotePull {
 
 /** 拉取自己的动画收藏(带 Authorization 可含私有条目),缓存 1 小时 */
 export async function pullCollections(acc: BgmAccount, force = false): Promise<RemotePull> {
-  const key = `bgm:pull:${acc.username}`
+  const key = `bgm:pull:v2:${acc.username}`
   if (!force) {
     const hit = readCache<RemotePull>(key, 3600_000)
     if (hit) return hit
@@ -86,8 +87,7 @@ export async function pullCollections(acc: BgmAccount, force = false): Promise<R
       const data = await resp.json()
       let pastCutoff = false
       for (const c of data.data ?? []) {
-        if (type === 4) out.onHold.push(c.subject_id)
-        else out.status[c.subject_id] = TYPE_TO_STATUS[type]
+        out.status[c.subject_id] = TYPE_TO_STATUS[type]
         if (c.ep_status > 0) out.watched[c.subject_id] = c.ep_status
         if (c.rate > 0) out.rates[c.subject_id] = c.rate
         const memo: CollectMemo = {}
@@ -106,6 +106,7 @@ export async function pullCollections(acc: BgmAccount, force = false): Promise<R
 
 export function clearPullCache(username: string) {
   clearCacheKey(`bgm:pull:${username}`)
+  clearCacheKey(`bgm:pull:v2:${username}`)
 }
 
 // ── 写回队列(localStorage,断网/刷新不丢) ──────────────────────────
@@ -210,14 +211,16 @@ export function mergeRemote(
   const rates = { ...local.rates }
   const memos = { ...local.memos }
   const pushes: Record<number, PushPatch> = {}
-  const onHold = new Set(remote.onHold)
+  // 兼容旧版缓存/调用者的 onHold 数组。
+  const remoteStatus = { ...remote.status }
+  for (const id of remote.onHold ?? []) remoteStatus[id] ??= 'paused'
 
-  const ids = new Set<number>(Object.keys(remote.status).map(Number))
+  const ids = new Set<number>(Object.keys(remoteStatus).map(Number))
   if (firstMerge) for (const k of Object.keys(local.status)) ids.add(Number(k))
 
   for (const id of ids) {
     if (queued.has(id)) continue
-    const rs = remote.status[id]
+    const rs = remoteStatus[id]
     const rw = remote.watched[id] ?? 0
     const rr = remote.rates[id] ?? 0
     const rm = remote.memos[id]
@@ -233,7 +236,7 @@ export function mergeRemote(
       if (mr > 0) rates[id] = mr
       if (mm) memos[id] = mm
       const memoDiff = lm && JSON.stringify(lm) !== JSON.stringify(rm ?? {})
-      if (merged && !onHold.has(id) && (merged !== rs || mw > rw || (mr > 0 && mr !== rr) || memoDiff)) {
+      if (merged && (merged !== rs || mw > rw || (mr > 0 && mr !== rr) || memoDiff)) {
         pushes[id] = {
           type: STATUS_TO_TYPE[merged],
           ...(mw > rw ? { ep: mw } : {}),
@@ -252,13 +255,6 @@ export function mergeRemote(
         else delete memos[id] // bgm 为准:云端清空了就清空
       }
     }
-  }
-  // 搁置:课表按未追显示(进度/评分保留)。首次合并若本机有状态,以本机为准(上面已推回)。
-  for (const id of onHold) {
-    if (queued.has(id)) continue
-    if (!firstMerge || !local.status[id]) delete status[id]
-    if (remote.rates[id]) rates[id] = remote.rates[id]
-    if (remote.memos[id]) memos[id] = remote.memos[id]
   }
   return { tracking: { status, watched, rates, memos }, pushes }
 }

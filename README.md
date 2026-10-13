@@ -2,24 +2,24 @@
 
 > **来源与二次开发声明**
 >
-> 本项目基于 [Miint-Sunny/Bangumi_ClassTimeTable](https://github.com/Miint-Sunny/Bangumi_ClassTimeTable)。原始网页版、核心课表与追番功能，以及下方“原作者网页说明（转载）”的主要内容来自原作者，**不是 MASUKA2018 从零原创开发的网页项目**。
+> 本客户端基于 [Miint-Sunny/Bangumi_ClassTimeTable](https://github.com/Miint-Sunny/Bangumi_ClassTimeTable)。原网页界面、课表与追番核心逻辑，以及本说明中沿用的基础功能描述来自原作者，**不是 MASUKA2018 从零原创开发的项目**。
 >
-> MASUKA2018 在此基础上开发和维护 Windows / macOS 桌面客户端并增加客户端功能。本仓库保留原作者署名及 [MIT 许可证](LICENSE)；原网页说明以转载／整理方式保留，仓库用途、客户端增补与停止网页部署的说明属于本次维护内容。
+> MASUKA2018 在原项目基础上开发和维护 Windows / macOS 桌面客户端，并增加下方单独列出的桌面功能。本说明由原作者 README 转载／整理内容与客户端新增说明组成；保留原作者署名及 [MIT 许可证](LICENSE)，不把上游已有成果算作本次客户端开发的原创功能。
 
 **像课表一样追番。** bangumi.tv 当季新番的日 / 周 / 月三视图课表,带追番进度与
 bgm 账号双向同步。
 
 ## 本仓库用途
 
-本仓库由 MASUKA2018 维护，用于每日更新客户端使用的公开放送数据，并通过 [GitHub Releases](https://github.com/MASUKA2018/Bangumi_ClassTimeTable/releases) 发布安装包与更新清单。客户端源码在独立的 [Bangumi_ClassTimeTable_Client](https://github.com/MASUKA2018/Bangumi_ClassTimeTable_Client) 仓库以 MIT 许可证公开；签名私钥和服务令牌不随源码发布。
+本仓库统一维护公开的 Windows / macOS 客户端源码、每日放送数据、构建流程和 [GitHub Releases 安装包与更新清单](https://github.com/MASUKA2018/Bangumi_ClassTimeTable/releases)。源码以 MIT 许可证开放；构建方式见 [CLIENT.md](CLIENT.md)，密钥管理见 [SECURITY.md](SECURITY.md)。Android 适配代码保留，当前发布与验证以 Windows / macOS 为主。
 
-**本仓库不再发布网页版。** GitHub Pages 和 Cloudflare 网页部署任务已停用；每日 bgm.wiki 数据同步保留，不影响 Windows / macOS 客户端获取放送数据。下方网页功能说明及保留的网页源码来自原项目，未同步桌面客户端新增的功能。
+2026-10-13 已合入原 [Bangumi_ClassTimeTable_Client](https://github.com/MASUKA2018/Bangumi_ClassTimeTable_Client) 的客户端源码及提交历史。后续开发、贡献和 [问题反馈](https://github.com/MASUKA2018/Bangumi_ClassTimeTable/issues) 集中在本仓库；旧客户端仓库仅作历史参考。
 
-[bgmtimetable.com](https://bgmtimetable.com/) 和 [原项目 Pages 镜像](https://miint-sunny.github.io/Bangumi_ClassTimeTable/) 是 [Miint-Sunny 原项目](https://github.com/Miint-Sunny/Bangumi_ClassTimeTable) 的网站链接，不是 MASUKA2018 在本仓库部署的网站。
+每日数据同步与程序构建独立运行：数据更新不会触发重新打包客户端。现有 `public/data/enhance.json`、Releases 和更新清单地址保持不变，旧版本客户端仍可读取数据和检查更新。签名私钥、服务令牌与用户账号数据不随源码发布。
 
-## 客户端二次开发范围
+**本仓库不发布网页版。** GitHub Pages 和 Cloudflare 网页部署任务已停用，保留 bgm.wiki 每日数据同步。原网页基础功能及客户端新增功能在下方分开说明。
 
-桌面客户端在原项目基础上增加了 Windows 平台适配、主题富提醒与分组定时、托盘与开机启动、欠番明细和待看清单、进度撤销、搁置同步、自动备份与安全恢复、签名更新中心，以及更多主题和显示调节。[桌面客户端源码已开源](https://github.com/MASUKA2018/Bangumi_ClassTimeTable_Client)；这些新增功能没有回填到本仓库保留的原网页源码中。
+**原项目网站（非 MASUKA2018 部署）：** [bgmtimetable.com](https://bgmtimetable.com/) · [原项目 Pages 镜像](https://miint-sunny.github.io/Bangumi_ClassTimeTable/)。
 
 ## Contributors · 贡献与致谢
 
@@ -34,9 +34,9 @@ bgm 账号双向同步。
 
 GitHub 侧栏的 Contributors 由提交记录自动统计，可能与这份分工说明不同；本表用于补充原作者、维护者、自动化机器人及 AI 辅助的实际作用，不修改历史作者信息。感谢 Bangumi、bangumi-data、bgm.wiki 与 yuc.wiki 的数据维护者；各数据来源的权利和署名仍归原维护者。
 
-## 原作者网页说明（转载）
+## 沿用原项目的基础功能
 
-以下功能说明主要摘录自原项目 README，内容归原作者；为说明本仓库状态，章节标题和部署说明作了必要调整。这里不表示本仓库已发布网页版，也不把原网页功能计为 MASUKA2018 的原创成果。
+以下基础功能与相应描述主要来自原项目；客户端平台适配与新增功能在“桌面客户端新增与改进”中单独说明。
 
 ### 三个视图
 
@@ -80,7 +80,6 @@ GitHub 侧栏的 Contributors 由提交记录自动统计，可能与这份分�
 ### 其他
 
 - 季度归档:顶栏切到任意历史季度(静态数据包,零 API 请求),2024Q4 起八季
-- 四主题(Bangumi 深色 / 深色 / 高对比深色 / 白色),首访跟随系统偏好
 - 界面四语言(简中 / 繁中 / 日本語 / EN),首访跟随浏览器语言;
   站内「关于」窗口含版本信息与更新历史
 - 键盘快捷键:`←/→` 翻页,`Home` 回今天,`D/W/M` 切视图
@@ -88,10 +87,26 @@ GitHub 侧栏的 Contributors 由提交记录自动统计，可能与这份分�
 - 全站动效只动 transform/opacity(不卡顿),尊重"减弱动态效果";
   弹窗轻磨砂(Liquid Glass 式)
 
+## 桌面客户端新增与改进
+
+以下是基于原项目的二次开发，不属于上方转载的原网页功能说明：
+
+- Windows 平台适配，与 macOS 共用业务和响应式布局代码，修正 Windows 滚动条及窗口拉伸问题。
+- 十款主题与色板预览；Windows 11 标题栏同步主题，macOS 保留原生按钮并同步底色。配色参考官方 [Nord](https://www.nordtheme.com/docs/colors-and-palettes/)、[Dracula](https://draculatheme.com/spec)、[Catppuccin](https://catppuccin.com/palette/) 与 [Solarized](https://ethanschoonover.com/solarized/)。
+- “在看”与“未在看”分组定时，封面富提醒、放送前／后提醒、仅想看范围与提醒快捷操作；可悬停暂停关闭或不自动关闭。
+- 关闭／最小化到托盘，恢复主窗口，以及可选开机自动启动。
+- 欠番集数明细与待看清单；今日、未来 24 小时、搁置分类，逐集标记及最近一次进度撤销。
+- 与 Bangumi 同步的“搁置”状态，保留观看进度并停止相应提醒。
+- 显示密度、100/115/130% 字体、三种封面大小与实时跟随系统主题。
+- 最近 7 天自动备份、3 份恢复／升级前快照；预览后合并／覆盖恢复，恢复后暂停云端同步，备份不含令牌。
+- 程序与数据独立更新；客户端源码在本仓库公开，安装包、更新签名和清单在本仓库 Releases 发布，用户确认后才安装程序更新。公开的更新公钥用于校验，签名私钥与服务令牌不随源码发布。
+
 ## 反馈
 
+客户端新增功能的问题请通过 [本仓库 Issues](https://github.com/MASUKA2018/Bangumi_ClassTimeTable/issues) 反馈。原项目的问题可向 [上游 Issues](https://github.com/Miint-Sunny/Bangumi_ClassTimeTable/issues) 反馈，不代表原作者维护本客户端的二次开发。
+
 用得不顺、数据不对、想要新功能 →
-[**提一个 Issue**](https://github.com/Miint-Sunny/Bangumi_ClassTimeTable/issues/new)。
+[**提一个客户端 Issue**](https://github.com/MASUKA2018/Bangumi_ClassTimeTable/issues/new)。
 站内「设置 → 反馈问题」也能直达。放送时间错误可先用详情页的校正编辑器自查自纠,
 把生成的 JSON 贴进 Issue 就是一份完整的修正报告。
 
@@ -114,7 +129,7 @@ GitHub 侧栏的 Contributors 由提交记录自动统计，可能与这份分�
 
 `refresh-data.yml` 现在只执行数据拉取、校验和提交，不再派发任何网页部署。安装包、更新签名、`latest.json`、现有数据及同步密钥不受影响。
 
-网页源码、`worker/` 和 `wrangler.toml` 保留供参考，未删除。它们包含原作者的域名与 OAuth 配置，不能当作本仓库已有的网站；请不要直接运行原来的网页部署命令。如果未来重新发布自有网站，应先配置自己的域名或 Pages 地址和账号，再明确启用独立部署流程。
+原项目的网页 OAuth 和 Cloudflare 部署代码保留为上游参考，见 [worker/README.md](worker/README.md)。其中的域名与部署示例属于原项目，并非本客户端的发布配置；自行部署应先更换自己的域名与 OAuth 配置，不要直接使用原作者域名。
 
 ## 开发
 
@@ -134,7 +149,7 @@ python3 scripts/bake_season.py 202607   # 可一次传多个 YYYYMM
 ## 路线图
 
 - [ ] 换季对比(上季 vs 本季追番回顾)
-- [ ] 「搁置」状态(目前课表按未追显示)
+- [x] 「搁置」状态与 Bangumi 同步、保留进度且停止提醒
 
 ## 协议
 

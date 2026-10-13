@@ -1,8 +1,11 @@
+@import './theme-palettes.css';
+
 /* ──────────────────────────────────────────────────────────────
    Bangumi 视觉语言:粉 #F09199 / 蓝链 #0084B4 / 小字号密集排版
    ────────────────────────────────────────────────────────────── */
 
 :root {
+  color-scheme: dark;
   --nav-h: 40px; /* 翻页导航条吸附高度,网格表头以此让位 */
   /* 动效体系:只动 transform/opacity(合成器级,不触发布局);快出发柔着陆,时长压在 0.25s 内 */
   --ease-out: cubic-bezier(0.25, 1, 0.5, 1); /* 减速曲线:列表/淡入 */
@@ -13,6 +16,7 @@
 }
 
 :root[data-theme='light'] {
+  color-scheme: light;
   --bg: #fdfdfd;
   --card: #ffffff;
   --border: #ececec;
@@ -132,6 +136,7 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--text);
+  overscroll-behavior: none;
   font: 12px/1.6 tahoma, 'Hiragino Sans GB', 'PingFang SC', 'Microsoft YaHei', 'Helvetica Neue', sans-serif;
 }
 
@@ -141,12 +146,50 @@ button { font: inherit; cursor: pointer; }
 
 /* 顶栏与工具条固定,内容区自己滚动 —— 表头跟着浏览走 */
 .container {
-  max-width: 1440px; margin: 0 auto; padding: 12px 18px 0;
+  width: 100%; max-width: 1440px; margin: 0 auto; padding: 12px 18px 0;
   height: 100dvh; display: flex; flex-direction: column; overflow: hidden;
   animation: fade-in 0.3s ease; /* 仅首次加载淡入;容器不会因切视图重挂载 */
 }
-.content-row { flex: 1 1 auto; min-height: 0; display: flex; gap: 14px; }
+.content-row { flex: 1 1 auto; min-height: 0; display: flex; gap: clamp(10px, 1vw, 18px); }
 .view-area { flex: 1 1 auto; min-width: 0; min-height: 0; overflow: auto; padding-bottom: 40px; }
+
+/* 浏览器版维持原来的阅读宽度；Windows/macOS 原生端在用户拉宽窗口时
+   一起扩展到更宽的工作区。2560px 覆盖常见 2K/高 DPI 桌面，同时避免
+   真正的超宽屏把七列无限拉散。 */
+@media (min-width: 1441px) {
+  html[data-native='true'] .container {
+    max-width: 2560px;
+    padding-inline: clamp(18px, 1.6vw, 30px);
+  }
+}
+
+/* Windows WebView2 的传统滚动条会永久占据约 17px，并带上下箭头；
+   仅在 Windows 原生端缩窄它。macOS 保留系统覆盖式滚动条。 */
+html[data-native='true'][data-platform='windows'] .view-area,
+html[data-native='true'][data-platform='windows'] .side-panel {
+  scrollbar-width: thin;
+  scrollbar-color: var(--text-subtle) transparent;
+}
+html[data-native='true'][data-platform='windows'] .view-area::-webkit-scrollbar,
+html[data-native='true'][data-platform='windows'] .side-panel::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+html[data-native='true'][data-platform='windows'] .view-area::-webkit-scrollbar-track,
+html[data-native='true'][data-platform='windows'] .side-panel::-webkit-scrollbar-track {
+  background: transparent;
+}
+html[data-native='true'][data-platform='windows'] .view-area::-webkit-scrollbar-thumb,
+html[data-native='true'][data-platform='windows'] .side-panel::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--text-subtle) 72%, transparent);
+  border-radius: 999px;
+}
+html[data-native='true'][data-platform='windows'] .view-area::-webkit-scrollbar-button,
+html[data-native='true'][data-platform='windows'] .side-panel::-webkit-scrollbar-button {
+  display: none;
+  width: 0;
+  height: 0;
+}
 /* 视图/翻页/换季切换:View Transitions API 交叉淡化(见 lib/anim.ts)——
    旧画面淡出与新画面淡入同帧进行,没有"先替换再补淡入"的暗坑,不会闪。 */
 ::view-transition-old(root),
@@ -178,11 +221,14 @@ button { font: inherit; cursor: pointer; }
 /* ── 右侧常驻面板:详情 / 追番速览 ─────────────── */
 
 .side-panel {
-  flex-shrink: 0; min-height: 0; overflow-y: auto;
+  flex-shrink: 0; min-width: 240px; min-height: 0; overflow-x: hidden; overflow-y: auto;
   background: var(--card); border: 1px solid var(--border); border-radius: 15px;
   padding: 16px 16px 16px 20px; margin-bottom: 12px; position: relative;
   container: panel / size; /* 高度来自 flex 拉伸(定高),清单限高用 cqh 取面板百分比 */
 }
+/* 周视图优先保证 892px 网格 + Windows 细滚动条的空间；用户曾拖宽的
+   侧栏在小窗口自动收窄，窗口再次拉大后会恢复到保存宽度。 */
+.content-row.view-week .side-panel { max-width: calc(100% - 916px); }
 .side-panel.will-collapse { opacity: .45; border-style: dashed; }
 .panel-grip {
   position: sticky; top: 0; float: left; margin-left: -16px; z-index: 20;
@@ -332,14 +378,48 @@ button { font: inherit; cursor: pointer; }
 }
 .season-sel:hover, .season-sel:focus { border-color: var(--pink); }
 .theme-sel { margin-left: 0; font-size: 12px; }
-.site-header .stats { color: var(--text-soft); }
+.site-header .stats { position: relative; color: var(--text-soft); }
 .site-header .stats b { color: var(--pink-strong); font-weight: normal; }
 .site-header .domains { display: inline-flex; gap: 10px; }
 .site-header .domains .gh { border-left: 1px solid var(--border); padding-left: 10px; }
 .site-header .spacer { flex: 1; }
+.behind-wrap { display: inline-block; }
 .behind-total {
   color: var(--red); background: var(--red-bg);
-  padding: 1px 9px; border-radius: 50px;
+  padding: 1px 7px 1px 9px; border: 1px solid transparent; border-radius: 50px;
+  font: inherit; line-height: inherit; cursor: pointer;
+}
+.behind-total:hover, .behind-total[aria-expanded='true'] { border-color: color-mix(in srgb, var(--red) 55%, transparent); }
+.behind-total:focus-visible { outline: 2px solid var(--pink); outline-offset: 2px; }
+.behind-caret { display: inline-block; margin-left: 4px; transition: transform var(--dur-fast) ease; }
+.behind-total[aria-expanded='true'] .behind-caret { transform: rotate(180deg); }
+.behind-popover {
+  position: absolute; z-index: 80; top: calc(100% + 8px); left: 0;
+  display: block; width: min(390px, 100%, calc(100vw - 32px));
+  padding: 10px; background: var(--card); color: var(--text);
+  border: 1px solid var(--border); border-radius: 10px;
+  box-shadow: 0 12px 34px rgba(0, 0, 0, 0.35);
+  animation: pop-in var(--dur-pop) var(--ease-spring) both;
+}
+.behind-popover-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 1px 2px 8px; }
+.behind-popover-head strong { color: var(--pink-strong); font-weight: normal; }
+.behind-popover-head small { color: var(--text-subtle); white-space: nowrap; }
+.behind-list { display: flex; flex-direction: column; max-height: min(320px, 55vh); overflow-y: auto; }
+.behind-row {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 14px; align-items: center;
+  width: 100%; padding: 8px; background: transparent; color: var(--text);
+  border: 0; border-top: 1px solid var(--border-soft); text-align: left; cursor: pointer;
+}
+.behind-row:hover, .behind-row:focus-visible { background: var(--pink-soft); outline: none; }
+.behind-name { min-width: 0; overflow-wrap: anywhere; line-height: 1.5; }
+.behind-eps { color: var(--red); white-space: nowrap; }
+.behind-popover-note { display: block; padding: 8px 2px 0; color: var(--text-subtle); font-size: 10px; line-height: 1.5; }
+@supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .behind-popover {
+    background: color-mix(in srgb, var(--card) 92%, transparent);
+    -webkit-backdrop-filter: blur(12px) saturate(1.25);
+    backdrop-filter: blur(12px) saturate(1.25);
+  }
 }
 
 /* ── 工具条 ───────────────────────────────────── */
@@ -397,7 +477,9 @@ a.iconbtn:hover { color: var(--pink-strong); text-decoration: none; }
 .week-grid {
   display: grid;
   grid-template-columns: 52px repeat(7, minmax(120px, 1fr));
-  min-width: 940px;
+  /* 52 + 7×120 = 892；旧的 940px 多留了 48px，恰好会在 Windows
+     占位式纵向滚动条出现后制造一条没有实际用途的横向滚动条。 */
+  min-width: 892px;
   border-left: 1px solid var(--border);
 }
 .wg-corner, .wg-dayhead, .wg-time, .wg-cell, .wg-now-time, .wg-now {
@@ -716,6 +798,23 @@ a.iconbtn:hover { color: var(--pink-strong); text-decoration: none; }
 
 .set-row { display: flex; align-items: center; gap: 10px; margin: 10px 0; flex-wrap: wrap; }
 .set-row .lbl { width: 72px; color: var(--text-soft); flex-shrink: 0; }
+.theme-setting { align-items: flex-start; }
+.theme-setting .lbl { padding-top: 9px; }
+.theme-grid { flex: 1; min-width: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; }
+.theme-preview {
+  display: flex; align-items: center; gap: 8px; min-width: 0; min-height: 40px;
+  padding: 7px 9px; text-align: left; border: 1px solid var(--border); border-radius: 8px;
+  background: var(--preview-bg); color: var(--preview-fg);
+}
+.theme-preview:hover, .theme-preview:focus-visible { border-color: var(--preview-accent); outline: none; }
+.theme-preview.on { outline: 2px solid var(--pink); outline-offset: 1px; }
+.theme-swatches { display: flex; flex-shrink: 0; gap: 3px; }
+.theme-swatches i { width: 8px; height: 15px; border-radius: 3px; background: var(--preview-accent); }
+.theme-swatches i:nth-child(2) { background: var(--preview-fg); opacity: 0.7; }
+.theme-swatches i:nth-child(3) { background: var(--preview-fg); opacity: 0.25; }
+.theme-label { flex: 1; min-width: 0; font-size: 11px; line-height: 1.4; overflow-wrap: anywhere; }
+.theme-check { color: var(--preview-accent); flex-shrink: 0; }
+.autostart-setting .seg button:disabled { cursor: wait; opacity: 0.55; }
 .friend-add { display: flex; gap: 6px; }
 .friend-add input {
   background: var(--bg); border: 1px solid var(--border); border-radius: 5px;
@@ -765,24 +864,138 @@ a.iconbtn:hover { color: var(--pink-strong); text-decoration: none; }
 .cl-text { color: var(--text-soft); line-height: 1.6; min-width: 0; }
 .changelog .cl-row:first-child .cl-text { color: var(--text); }
 
-.cut-sel {
+.cut-sel, .reminder-time {
   background: var(--bg); border: 1px solid var(--border); border-radius: 5px;
   color: var(--text); padding: 4px 6px; outline: none;
 }
+.reminder-time:disabled { opacity: 0.5; }
+.reminder-setting + .reminder-setting { border-top: 1px solid var(--border-soft); padding-top: 2px; }
+.reminder-note { color: var(--text-soft); }
 .set-sub { color: var(--text-subtle); font-size: 11px; line-height: 1.7; margin: 2px 0 8px 82px; }
 .set-sub.err { color: var(--red); }
+.data-updated { color: var(--text-subtle); font-size: 11px; }
 .bgm-acc { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .bgm-acc img { width: 22px; height: 22px; border-radius: 50%; }
 .bgm-acc .dim { color: var(--text-subtle); }
 .friend-add { align-items: center; flex-wrap: wrap; }
 .friend-add .or { color: var(--text-subtle); font-size: 11px; }
 
+/* ── 桌面端右下角富提醒窗口 ───────────────────── */
+
+html[data-reminder='true'],
+html[data-reminder='true'] body,
+html[data-reminder='true'] #root {
+  background: transparent !important;
+  overflow: hidden;
+}
+.reminder-viewport {
+  position: absolute; left: 0; top: 0;
+  width: 720px; height: 333px;
+  transform: scale(.75); transform-origin: top left;
+}
+.reminder-popup {
+  position: absolute; inset: 8px;
+  padding: 14px 18px 16px;
+  background: color-mix(in srgb, var(--card) 96%, transparent);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  color: var(--text);
+  box-shadow: 0 14px 38px rgba(0, 0, 0, .42), inset 0 1px 0 rgba(255, 255, 255, .06);
+  animation: reminder-in .3s var(--ease-spring) both;
+  user-select: none;
+}
+.reminder-popup::before {
+  content: ''; position: absolute; left: 0; top: 38px; bottom: 18px; width: 3px;
+  border-radius: 0 4px 4px 0; background: var(--blue);
+}
+.reminder-popup.other::before { background: var(--pink); }
+.reminder-heading {
+  height: 28px; display: flex; align-items: center; gap: 8px;
+  color: var(--text-soft); font-size: 12px; letter-spacing: .04em;
+}
+.reminder-kind { color: var(--blue); font-size: 10px; }
+.reminder-popup.other .reminder-kind { color: var(--pink-strong); }
+.reminder-count {
+  margin-left: auto; margin-right: 30px; padding: 0 8px;
+  border-radius: 99px; background: var(--chip-bg); color: var(--text-subtle);
+  font: 10px/20px ui-monospace, monospace; letter-spacing: 0;
+}
+.reminder-close {
+  position: absolute; right: 14px; top: 10px; z-index: 2;
+  width: 30px; height: 30px; padding: 0; border: 0; border-radius: 50%;
+  background: transparent; color: var(--text-soft); font: 25px/28px sans-serif;
+}
+.reminder-close:hover { background: var(--chip-bg); color: var(--pink-strong); }
+.reminder-card { height: 226px; display: flex; gap: 20px; padding-top: 5px; }
+.reminder-cover-wrap {
+  width: 136px; height: 204px; flex: 0 0 136px; padding: 4px;
+  border: 1px solid var(--border-soft); border-radius: 12px; background: var(--bg);
+}
+.reminder-cover {
+  display: block; width: 100%; height: 100%; object-fit: cover; border-radius: 8px;
+}
+.reminder-cover.placeholder {
+  display: grid; place-content: center; text-align: center;
+  color: var(--pink); font-size: 18px; line-height: 1.4;
+  background: linear-gradient(145deg, var(--pink-soft), var(--chip-bg));
+}
+.reminder-copy { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.reminder-copy h1 {
+  margin: 4px 34px 12px 0; color: var(--blue); font-size: 22px; font-weight: normal;
+  line-height: 1.42; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden;
+}
+.reminder-popup.other .reminder-copy h1 { color: var(--pink-strong); }
+.reminder-meta {
+  display: flex; align-items: stretch; width: fit-content; max-width: 100%;
+  padding: 9px 13px; background: var(--chip-bg); border: 1px solid var(--border-soft); border-radius: 10px;
+}
+.reminder-meta > span { min-width: 132px; display: flex; flex-direction: column; }
+.reminder-meta b { color: var(--gold); font-size: 18px; font-weight: normal; line-height: 1.25; }
+.reminder-meta small { color: var(--text-subtle); font-size: 10px; }
+.reminder-meta > i { width: 1px; margin: 0 15px; background: var(--border); }
+.reminder-copy > p { margin: 11px 0 0; color: var(--text-soft); font-size: 12px; }
+.reminder-nav { margin-top: auto; display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.reminder-nav button {
+  padding: 3px 10px; border: 1px solid var(--border); border-radius: 99px;
+  background: var(--chip-bg); color: var(--text-soft);
+}
+.reminder-nav button:hover { border-color: var(--pink); color: var(--pink-strong); }
+.reminder-nav > span { display: flex; gap: 5px; max-width: 230px; overflow: hidden; }
+.reminder-nav > span i { width: 6px; height: 6px; flex: 0 0 6px; border-radius: 50%; background: var(--border); }
+.reminder-nav > span i.on { background: var(--pink); transform: scale(1.25); }
+.reminder-empty {
+  height: 216px; display: grid; place-content: center;
+  color: var(--text-soft); font-size: 16px;
+}
+@keyframes reminder-in {
+  from { opacity: 0; transform: translateX(24px) scale(.97); }
+  to { opacity: 1; transform: none; }
+}
+
 /* ── 移动端 ───────────────────────────────────── */
 
 @media (max-width: 720px) {
-  .container { padding: 10px 10px 40px; }
+  .container {
+    padding:
+      calc(8px + env(safe-area-inset-top))
+      calc(8px + env(safe-area-inset-right))
+      calc(12px + env(safe-area-inset-bottom))
+      calc(8px + env(safe-area-inset-left));
+  }
+  .site-header { gap: 8px; padding-bottom: 8px; margin-bottom: 8px; }
   .site-header h1 { font-size: 18px; }
-  .search { width: 120px; }
+  .site-header .domains, .site-header .stats { display: none; }
+  .site-header .spacer { display: none; }
+  .site-header .theme-sel, .site-header .lang-sel { display: none; }
+  .season-sel { margin-left: 6px; max-width: 142px; }
+  .toolbar { gap: 6px; margin-bottom: 8px; }
+  .toolbar > .spacer { display: none; }
+  .search { width: min(150px, 42vw); }
+  .iconbtn, .chip, .seg button { min-height: 36px; padding-top: 6px; padding-bottom: 6px; }
+  .view-area { padding-bottom: calc(20px + env(safe-area-inset-bottom)); overscroll-behavior: contain; }
+  .month-nav { position: sticky; left: 0; min-width: min(100%, 360px); }
+  .modal { width: calc(100vw - 16px); max-height: calc(100dvh - 16px); padding: 18px 14px; }
+  .overlay { padding: 8px; }
   .set-sub { margin-left: 0; }
   .mg-cell { min-height: 64px; }
   .mg-entry .nm { max-width: 100%; }
