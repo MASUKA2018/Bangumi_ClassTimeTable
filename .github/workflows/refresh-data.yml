@@ -12,7 +12,6 @@ on:
 
 permissions:
   contents: write
-  actions: write # 数据提交后派发 deploy-cloudflare / deploy-pages
 
 jobs:
   sync:
@@ -62,11 +61,9 @@ jobs:
       # 校验已把关(条目数量 + 人工校正保留),直接进 main。
       # 曾经的开 PR 流程没人每天点合并,数据积压在分支上永远到不了站点。
       - name: 提交数据到 main
-        id: commit
         run: |
           if git diff --quiet public/data/enhance.json; then
             echo "数据无变化,跳过提交"
-            echo "changed=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
           git config user.name "github-actions[bot]"
@@ -75,16 +72,6 @@ jobs:
           git commit -m "data: bgm.wiki 每日同步"
           git pull --rebase origin main
           git push
-          echo "changed=true" >> "$GITHUB_OUTPUT"
 
-      # GITHUB_TOKEN 的推送不会触发 on:push 工作流,主站和 Pages 镜像都会停在旧版。
-      # 改为显式派发两个部署(workflow_dispatch 经 API 由 GITHUB_TOKEN 触发是允许的,
-      # run 检出派发时刻的 main 最新提交 = 刚推上去的数据)。部署逻辑只留一份,
-      # 缺 CLOUDFLARE secret 时 deploy-cloudflare 自己会警告跳过。
-      - name: 派发部署(Cloudflare 主站 + Pages 镜像)
-        if: steps.commit.outputs.changed == 'true'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          gh workflow run deploy-cloudflare.yml --ref main
-          gh workflow run deploy.yml --ref main
+      # This repository only publishes data and client installers.
+      # Committing enhanced broadcast data is the final step; no website deployment.

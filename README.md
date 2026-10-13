@@ -1,12 +1,42 @@
 # 番组课表 · Bangumi ClassTimetable
 
+> **来源与二次开发声明**
+>
+> 本项目基于 [Miint-Sunny/Bangumi_ClassTimeTable](https://github.com/Miint-Sunny/Bangumi_ClassTimeTable)。原始网页版、核心课表与追番功能，以及下方“原作者网页说明（转载）”的主要内容来自原作者，**不是 MASUKA2018 从零原创开发的网页项目**。
+>
+> MASUKA2018 在此基础上开发和维护 Windows / macOS 桌面客户端并增加客户端功能。本仓库保留原作者署名及 [MIT 许可证](LICENSE)；原网页说明以转载／整理方式保留，仓库用途、客户端增补与停止网页部署的说明属于本次维护内容。
+
 **像课表一样追番。** bangumi.tv 当季新番的日 / 周 / 月三视图课表,带追番进度与
 bgm 账号双向同步。
 
-**👉 正式站点:[bgmtimetable.com](https://bgmtimetable.com/)**
-(可安装为 PWA;GitHub Pages [镜像](https://miint-sunny.github.io/Bangumi_ClassTimeTable/) 同步更新)
+## 本仓库用途
 
-## 功能
+本仓库由 MASUKA2018 维护，用于每日更新客户端使用的公开放送数据，并通过 [GitHub Releases](https://github.com/MASUKA2018/Bangumi_ClassTimeTable/releases) 发布安装包与更新清单。客户端源码在独立的 [Bangumi_ClassTimeTable_Client](https://github.com/MASUKA2018/Bangumi_ClassTimeTable_Client) 仓库以 MIT 许可证公开；签名私钥和服务令牌不随源码发布。
+
+**本仓库不再发布网页版。** GitHub Pages 和 Cloudflare 网页部署任务已停用；每日 bgm.wiki 数据同步保留，不影响 Windows / macOS 客户端获取放送数据。下方网页功能说明及保留的网页源码来自原项目，未同步桌面客户端新增的功能。
+
+[bgmtimetable.com](https://bgmtimetable.com/) 和 [原项目 Pages 镜像](https://miint-sunny.github.io/Bangumi_ClassTimeTable/) 是 [Miint-Sunny 原项目](https://github.com/Miint-Sunny/Bangumi_ClassTimeTable) 的网站链接，不是 MASUKA2018 在本仓库部署的网站。
+
+## 客户端二次开发范围
+
+桌面客户端在原项目基础上增加了 Windows 平台适配、主题富提醒与分组定时、托盘与开机启动、欠番明细和待看清单、进度撤销、搁置同步、自动备份与安全恢复、签名更新中心，以及更多主题和显示调节。[桌面客户端源码已开源](https://github.com/MASUKA2018/Bangumi_ClassTimeTable_Client)；这些新增功能没有回填到本仓库保留的原网页源码中。
+
+## Contributors · 贡献与致谢
+
+| 贡献者 / 工具 | 实际分工 |
+| --- | --- |
+| [Miint-Sunny](https://github.com/Miint-Sunny) | 原始项目作者；提供网页界面、课表与追番核心逻辑、数据处理基础及原项目说明。 |
+| [MASUKA2018](https://github.com/MASUKA2018) | 基于原项目的 Windows / macOS 客户端二次开发、需求制定、测试验收、数据与版本发布维护；不是原始网页版的原创作者。 |
+| [github-actions[bot]](https://github.com/apps/github-actions) | 自动化执行每日放送数据同步、校验和数据提交；Git 历史已有实际提交记录。 |
+| OpenAI ChatGPT / Codex（AI 辅助工具） | 按维护者需求辅助客户端功能实现、调试、测试、构建及文档整理；不作为独立的人类维护者或虚构 GitHub 账号。 |
+
+**上游历史署名：** 原项目提交包含 Claude 的协作署名，例如 [CI 加固提交](https://github.com/Miint-Sunny/Bangumi_ClassTimeTable/commit/7b6c52ced8e1adfd1e8650f3bbdf1f536dcecf57)。这里保留该历史贡献记录，不将其列为本次桌面客户端新增功能的参与工具。
+
+GitHub 侧栏的 Contributors 由提交记录自动统计，可能与这份分工说明不同；本表用于补充原作者、维护者、自动化机器人及 AI 辅助的实际作用，不修改历史作者信息。感谢 Bangumi、bangumi-data、bgm.wiki 与 yuc.wiki 的数据维护者；各数据来源的权利和署名仍归原维护者。
+
+## 原作者网页说明（转载）
+
+以下功能说明主要摘录自原项目 README，内容归原作者；为说明本仓库状态，章节标题和部署说明作了必要调整。这里不表示本仓库已发布网页版，也不把原网页功能计为 MASUKA2018 的原创成果。
 
 ### 三个视图
 
@@ -80,17 +110,11 @@ bgm 账号双向同步。
 所有远端响应均本地缓存,正常使用一天只产生个位数 API 请求。
 **不写、不跑任何针对 yuc.wiki 或 bgm.tv 网页的定时/批量爬虫。**
 
-## 自部署
+## 网页部署已停用
 
-**Cloudflare Workers(推荐,含 OAuth 一键登录)**:静态站点与 OAuth 令牌代理
-同域名,`npm run deploy` 一条命令发布 + 自动绑定域名(www 自动 301 回裸域);
-设好 `CLOUDFLARE_API_TOKEN` / `CLOUDFLARE_ACCOUNT_ID` 两个 secret 后,
-推 main 与每日数据更新都会自动部署。完整步骤见 [worker/README.md](worker/README.md)。
+`refresh-data.yml` 现在只执行数据拉取、校验和提交，不再派发任何网页部署。安装包、更新签名、`latest.json`、现有数据及同步密钥不受影响。
 
-**GitHub Pages(纯静态镜像)**:Settings → Pages 选 "GitHub Actions" 即可,
-`deploy.yml` 每次 push main 自动构建发布,每日数据更新也会派发镜像重建,
-与主站保持同步。镜像上 OAuth 按钮自动隐藏(回调域名不匹配),
-个人令牌登录不受影响。
+网页源码、`worker/` 和 `wrangler.toml` 保留供参考，未删除。它们包含原作者的域名与 OAuth 配置，不能当作本仓库已有的网站；请不要直接运行原来的网页部署命令。如果未来重新发布自有网站，应先配置自己的域名或 Pages 地址和账号，再明确启用独立部署流程。
 
 ## 开发
 
