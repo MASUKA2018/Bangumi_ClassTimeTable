@@ -1,5 +1,11 @@
 /** Shared feature strings; Chinese text remains the canonical lookup key. */
 export const FEATURE_STRINGS: Record<string, [string, string, string]> = {
+  '正在上传追番改动…': ['正在上傳追番改動…', '視聴データを送信中…', 'Uploading tracking changes…'],
+  '已上传追番改动 {t}': ['已上傳追番改動 {t}', '視聴データを送信済み {t}', 'Tracking changes uploaded {t}'],
+  '上传未完成，{n} 条改动已保存在本机，将自动重试。': ['上傳未完成，{n} 筆改動已儲存在本機，將自動重試。', '未送信の変更{n}件は端末に保存されています。自動で再試行します。', '{n} changes remain saved on this device and will retry automatically.'],
+  '已读取云端，{n} 条本机改动尚未上传，将自动重试。': ['已讀取雲端，{n} 筆本機改動尚未上傳，將自動重試。', 'クラウドを取得しました。端末の未送信変更{n}件を自動で再試行します。', 'Cloud data loaded; {n} local changes remain pending and will retry automatically.'],
+  '上传失败，改动已保存在本机：{e}': ['上傳失敗，改動已儲存在本機：{e}', '送信失敗。変更は端末に保存されています：{e}', 'Upload failed; changes remain saved on this device: {e}'],
+  '两台设备连接同一个 Bangumi 账号即可同步观看进度。启动、切回窗口及恢复联网时刷新，运行中每 5 分钟检查；不是实时推送。': ['兩台裝置連接同一個 Bangumi 帳號即可同步觀看進度。啟動、切回視窗及恢復連線時更新，執行中每 5 分鐘檢查；不是即時推送。', '同じBangumiアカウントで視聴進捗を同期できます。起動・ウィンドウ復帰・再接続時と実行中5分ごとに確認します。リアルタイム配信ではありません。', 'Use the same Bangumi account on both devices. Refreshes at startup, foreground and reconnection, and every 5 minutes while running; not real-time push.'],
   '本机存储写入失败，请立即导出备份。': ['本機儲存寫入失敗，請立即匯出備份。', '本機の保存に失敗しました。すぐにバックアップをエクスポートしてください。', 'Local save failed. Export a backup immediately.'],
   '支持“搁置”状态，保留进度并暂停提醒。': ['支援「擱置」狀態，保留進度並暫停提醒。', '「保留」は進捗を保持し、通知を停止します。', 'On hold keeps progress and pauses reminders.'],
   搁置: ['擱置', '保留', 'On hold'],

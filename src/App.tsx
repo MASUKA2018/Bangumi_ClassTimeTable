@@ -14,7 +14,9 @@ import {
   queuedIds,
   saveAccount,
   verifyToken,
+  type DrainResult,
 } from './lib/bgm'
+import { installBgmAutoSync } from './lib/bgmAutoSync'
 import { beginOauthLogin, completeOauthLogin, fetchOauthConf, refreshIfNeeded, type OauthConf } from './lib/oauth'
 import { withViewTransition } from './lib/anim'
 import { displayName, LANGS, setLang, t, type Lang } from './lib/i18n'
@@ -187,7 +189,7 @@ export default function App() {
   })
   const reminderSending = useRef(new Set<ReminderKind>())
   const [account, setAccount] = useState<BgmAccount | null>(() => loadAccount())
-  const [syncState, setSyncState] = useState<{ msg: string; busy: boolean }>({ msg: '', busy: false })
+  const [syncState, setSyncState] = useState<{ msg: string; busy: boolean; error?: boolean }>({ msg: '', busy: false })
   const [oauthConf, setOauthConf] = useState<OauthConf | null>(null)
   const oauthRef = useRef<OauthConf | null>(null)
 
@@ -261,75 +263,131 @@ export default function App() {
 
   const drainTimer = useRef<number | null>(null)
   const drainingRef = useRef(false)
-  const drainNow = useCallback(async () => {
+  const syncingRef = useRef(false)
+  const isCurrentAccount = useCallback((acc: BgmAccount) => !syncPausedRef.current
+    && accountRef.current?.username === acc.username && accountRef.current?.token === acc.token, [])
+  const applyConfirmedProgress = useCallback((result: DrainResult) => {
+    const pending = queuedIds()
+    const watched = { ...trackingRef.current.watched }
+    let changed = false
+    for (const [id, progress] of Object.entries(result.confirmedProgress)) {
+      if (!pending.has(Number(id)) && watched[Number(id)] !== progress) { watched[Number(id)] = progress; changed = true }
+    }
+    if (changed) {
+      const next = { ...trackingRef.current, watched }
+      trackingRef.current = next; setTracking(next)
+    }
+  }, [])
+  const drainNow = useCallback(async (): Promise<void> => {
     if (drainingRef.current || syncPausedRef.current) return
     drainingRef.current = true
+    setSyncState(s => ({ ...s, msg: t('正在上传追番改动…'), busy: true, error: false }))
+    let activeAccount = accountRef.current
     try {
       const acc = await ensureFresh()
+      activeAccount = acc ?? activeAccount
       if (!acc || syncPausedRef.current) return
-      await drainQueue(acc)
+      const result = await drainQueue(acc)
+      if (!isCurrentAccount(acc)) return
+      applyConfirmedProgress(result)
+      setSyncState({ busy: syncingRef.current, error: result.pending > 0 || !!result.error,
+        msg: result.pending ? t('上传未完成，{n} 条改动已保存在本机，将自动重试。', { n: result.pending }) + (result.error ? ` ${result.error}` : '')
+          : t('已上传追番改动 {t}', { t: new Date().toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' }) }) + (result.error ? ` ${result.error}` : '') })
+      if (result.nextRetryAt) {
+        if (drainTimer.current) window.clearTimeout(drainTimer.current)
+        drainTimer.current = window.setTimeout(drainNow, Math.max(1500, result.nextRetryAt - Date.now()))
+      }
     } catch (e) {
+      if (activeAccount && !isCurrentAccount(activeAccount)) return
       if (e instanceof BgmAuthError) setAccount((a) => (a ? { ...a, invalid: true } : a))
-    } finally { drainingRef.current = false }
-  }, [ensureFresh])
+      setSyncState({ msg: t('上传失败，改动已保存在本机：{e}', { e: e instanceof Error ? e.message : String(e) }), busy: syncingRef.current, error: true })
+    } finally {
+      drainingRef.current = false
+      setSyncState(s => ({ ...s, busy: syncingRef.current }))
+    }
+  }, [ensureFresh, isCurrentAccount, applyConfirmedProgress])
   const scheduleDrain = useCallback(() => {
     if (drainTimer.current) window.clearTimeout(drainTimer.current)
     drainTimer.current = window.setTimeout(drainNow, 1500)
   }, [drainNow])
 
-  const syncingRef = useRef(false)
-  const doSync = useCallback(async (force = false) => {
+  const doSync = useCallback(async (force = false, retryUploads = false) => {
     if (syncingRef.current) return
     syncingRef.current = true
-    const acc = await ensureFresh()
-    if (!acc) {
-      syncingRef.current = false
-      return
-    }
     setSyncState((s) => ({ ...s, busy: true }))
+    let activeAccount = accountRef.current
     try {
-      if (acc.mergedOnce) await drainQueue(acc) // 先推后拉,拉到的就包含本机改动
-      const remote = await pullCollections(acc, force)
-      const { tracking: merged, pushes } = mergeRemote(trackingRef.current, remote, !acc.mergedOnce, queuedIds())
+      const acc = await ensureFresh()
+      activeAccount = acc ?? activeAccount
+      if (!acc || !isCurrentAccount(acc)) return
+      const before = await drainQueue(acc, retryUploads) // Join any active upload; never pull ahead of it.
+      if (!isCurrentAccount(acc)) return
+      applyConfirmedProgress(before)
+      const repair = acc.episodeSyncVersion !== 1
+      const remote = await pullCollections(acc, force || repair)
+      if (!isCurrentAccount(acc)) return
+      const { tracking: merged, pushes } = mergeRemote(trackingRef.current, remote, !acc.mergedOnce, queuedIds(), repair)
+      trackingRef.current = merged
       setTracking(merged)
       const pushIds = Object.keys(pushes)
       for (const id of pushIds) enqueuePush(Number(id), pushes[Number(id)])
-      if (pushIds.length) await drainQueue(acc)
-      if (!acc.mergedOnce) setAccount((a) => (a ? { ...a, mergedOnce: true } : a))
+      const after = pushIds.length ? await drainQueue(acc, retryUploads) : before
+      if (!isCurrentAccount(acc)) return
+      applyConfirmedProgress(after)
+      const pending = queuedIds().size
+      const nextAccount = { ...acc, mergedOnce: true, ...(pending === 0 ? { episodeSyncVersion: 1 } : {}) }
+      accountRef.current = nextAccount; setAccount(nextAccount)
       const at = new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
       setSyncState({
-        msg: t('已同步 {t}', { t: at }) + (pushIds.length ? t(' · 推回 {n} 条', { n: pushIds.length }) : ''),
+        msg: pending ? t('已读取云端，{n} 条本机改动尚未上传，将自动重试。', { n: pending }) + (after.error ? ` ${after.error}` : '')
+          : t('已同步 {t}', { t: at }) + (after.error ? ` ${after.error}` : ''),
         busy: false,
+        error: pending > 0 || !!after.error,
       })
+      if (after.nextRetryAt) {
+        if (drainTimer.current) window.clearTimeout(drainTimer.current)
+        drainTimer.current = window.setTimeout(drainNow, Math.max(1500, after.nextRetryAt - Date.now()))
+      }
     } catch (e) {
+      if (activeAccount && !isCurrentAccount(activeAccount)) return
       if (e instanceof BgmAuthError) {
         setAccount((a) => (a ? { ...a, invalid: true } : a))
-        setSyncState({ msg: t('令牌已失效,请重新连接'), busy: false })
+        setSyncState({ msg: t('令牌已失效,请重新连接'), busy: false, error: true })
       } else {
-        setSyncState({ msg: t('同步失败:{e}', { e: e instanceof Error ? e.message : String(e) }), busy: false })
+        setSyncState({ msg: t('同步失败:{e}', { e: e instanceof Error ? e.message : String(e) }), busy: false, error: true })
       }
     } finally {
       syncingRef.current = false
+      setSyncState(s => ({ ...s, busy: drainingRef.current }))
     }
-  }, [ensureFresh])
+  }, [ensureFresh, isCurrentAccount, applyConfirmedProgress, drainNow])
 
   useEffect(() => {
     if (!account?.token || account.invalid) return
-    doSync()
-    const id = window.setInterval(() => doSync(), 30 * 60_000) // 拉取本身有 1h 缓存,间隔只是兜底
-    return () => window.clearInterval(id)
+    const triggers = installBgmAutoSync(retry => doSync(true, retry))
+    let alive = true, unlisten: (() => void) | undefined
+    if (isNativeApp()) import('@tauri-apps/api/window')
+      .then(({ getCurrentWindow }) => getCurrentWindow().onFocusChanged(event => { if (event.payload) triggers.refresh() }))
+      .then(fn => { if (alive) unlisten = fn; else fn() }).catch(() => undefined)
+    return () => { alive = false; triggers.dispose(); unlisten?.() }
   }, [account?.token, account?.invalid, doSync])
+
+  useEffect(() => () => { if (drainTimer.current) window.clearTimeout(drainTimer.current) }, [])
 
   const bgmLogin = useCallback(async (token: string) => {
     const me = await verifyToken(token.trim()) // 失败抛错,由设置页展示
+    if (accountRef.current && accountRef.current.username !== me.username) clearQueue()
     syncPausedRef.current = false; setSyncPaused(false); localStorage.removeItem('btt:bgm:sync-paused:v1')
-    setAccount({ token: token.trim(), ...me, mergedOnce: false })
+    const next = { token: token.trim(), ...me, mergedOnce: false }
+    accountRef.current = next; setAccount(next)
   }, [])
 
   const bgmLogout = useCallback(() => {
     const acc = accountRef.current
     if (acc) clearPullCache(acc.username)
     clearQueue()
+    if (drainTimer.current) window.clearTimeout(drainTimer.current)
+    accountRef.current = null
     setAccount(null) // 本机追番记录保留
     setSyncState({ msg: '', busy: false })
   }, [])
@@ -684,13 +742,13 @@ export default function App() {
       if (!Number.isFinite(n)) return
       const before = trackingRef.current.watched[id] ?? 0
       if (before === n) return
-      const next = { ...trackingRef.current, watched: { ...trackingRef.current.watched, [id]: n } }
+      const st = trackingRef.current.status[id] ?? 'watching'
+      const next = { ...trackingRef.current, status: { ...trackingRef.current.status, [id]: st }, watched: { ...trackingRef.current.watched, [id]: n } }
       trackingRef.current = next; setTracking(next)
       setUndoProgress(allowUndo ? { id, before, after: n } : null)
       const acc = accountRef.current
       if (acc && !acc.invalid && !syncPausedRef.current) {
-        const st = trackingRef.current.status[id] ?? 'watching' // 改进度即视为在看
-        enqueuePush(id, { type: STATUS_TO_TYPE[st], ep: n })
+        enqueuePush(id, { type: STATUS_TO_TYPE[st], ep: n, rewind: n < before })
         scheduleDrain()
       }
     },
@@ -900,7 +958,7 @@ export default function App() {
       const acc = accountRef.current
       if (acc) { accountRef.current = { ...acc, mergedOnce: false }; setAccount(accountRef.current) }
     }
-    void doSync(true)
+    void doSync(true, true)
   }, [doSync])
   useEffect(() => {
     if (!isNativeApp()) return

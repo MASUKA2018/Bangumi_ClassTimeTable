@@ -11,7 +11,7 @@ interface Props {
   settings: Settings
   friendErrors: Record<string, string>
   account: BgmAccount | null
-  sync: { msg: string; busy: boolean }
+  sync: { msg: string; busy: boolean; error?: boolean }
   scheduleDataAt?: string
   oauth: OauthConf | null
   reminderStatus: Record<ReminderKind, ReminderStatus>
@@ -163,7 +163,7 @@ export default function SettingsPanel({
         )}
         {loginErr && <div className="set-sub err">{loginErr}</div>}
         {account && !account.invalid && sync.msg && (
-          <div className={`set-sub${sync.msg.includes('失败') ? ' err' : ''}`}>{sync.msg}</div>
+          <div className={`set-sub${sync.error || sync.msg.includes('失败') ? ' err' : ''}`}>{sync.msg}</div>
         )}
         {!account && sync.msg.includes('登录失败') && <div className="set-sub err">{sync.msg}</div>}
         {!account && (
@@ -174,11 +174,12 @@ export default function SettingsPanel({
               next.bgm.tv/demo/access-token
             </a>{' '}
             {t(
-              '生成个人令牌(建议选一年有效期)粘贴连接。令牌只保存在本机浏览器,不进备份文件,可随时吊销。 连接后:应用内的追番改动即时写回 bgm.tv;bgm.tv 侧的改动每半小时拉取合并(以 bgm 为准)。 首次连接会双向合并(状态本机优先、进度取较大值)。bgm 的「搁置」保留进度并暂停提醒; 本地取消追番不会删除 bgm 收藏。',
+              '生成个人令牌(建议选一年有效期)粘贴连接。令牌只保存在本机浏览器,不进备份文件,可随时吊销。 连接后:应用内的追番改动写回 bgm.tv;云端改动每 5 分钟检查，并在切回窗口或恢复联网时刷新。 首次连接会双向合并(状态本机优先、进度取较大值)。bgm 的「搁置」保留进度并暂停提醒; 本地取消追番不会删除 bgm 收藏。',
             )}
           </div>
         )}
         <div className="set-sub">{t('支持“搁置”状态，保留进度并暂停提醒。')}</div>
+        <div className="set-sub">{t('两台设备连接同一个 Bangumi 账号即可同步观看进度。启动、切回窗口及恢复联网时刷新，运行中每 5 分钟检查；不是实时推送。')}</div>
 
         <div className="set-row theme-setting">
           <span className="lbl">{t('主题')}</span>

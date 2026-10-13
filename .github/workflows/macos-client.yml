@@ -82,7 +82,11 @@ jobs:
           fi
 
       - name: Archive application bundle
-        run: ditto -c -k --sequesterRsrc --keepParent "src-tauri/target/release/bundle/macos/番组课表.app" "src-tauri/target/release/bundle/macos/bangumi-class-timetable-macos.app.zip"
+        run: |
+          ditto -c -k --sequesterRsrc --keepParent "src-tauri/target/release/bundle/macos/番组课表.app" "src-tauri/target/release/bundle/macos/bangumi-class-timetable-macos.app.zip"
+          # Native tar preserves executable modes and symlinks, also for unsigned CI builds.
+          tar -czf "src-tauri/target/release/bundle/macos/bangumi-class-timetable-macos.app.tar.gz" -C "src-tauri/target/release/bundle/macos" "番组课表.app"
+          node -e 'const fs=require("node:fs"); const pkg=require("./package.json"); fs.writeFileSync("src-tauri/target/release/bundle/macos/build-metadata.json",JSON.stringify({version:pkg.version,os:process.platform,arch:process.arch}));'
 
       - name: Upload macOS packages
         uses: actions/upload-artifact@v7
@@ -94,3 +98,4 @@ jobs:
             src-tauri/target/release/bundle/macos/bangumi-class-timetable-macos.app.zip
             src-tauri/target/release/bundle/macos/*.tar.gz
             src-tauri/target/release/bundle/macos/*.sig
+            src-tauri/target/release/bundle/macos/build-metadata.json

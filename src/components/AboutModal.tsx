@@ -12,6 +12,15 @@ interface LogEntry {
 
 const CHANGELOG: LogEntry[] = [
   {
+    d: '2026-10-13',
+    x: {
+      'zh-Hans': '桌面端 beta 0.4.1：修复跨设备观看集数上传，改用 Bangumi 章节状态接口并确认结果；旧缓存不再覆盖新进度，支持回退和清零，离线改动持续保留重试。启动、窗口恢复和恢复联网时刷新，运行中每 5 分钟同步。',
+      'zh-Hant': '桌面端 beta 0.4.1：修復跨裝置觀看集數上傳，改用 Bangumi 章節狀態介面並確認結果；舊快取不再覆蓋新進度，支援回退和清零，離線改動持續保留重試。啟動、視窗恢復和恢復連線時更新，執行中每 5 分鐘同步。',
+      ja: 'デスクトップ beta 0.4.1：話数進捗をBangumiの各話状態APIで送信し、結果を確認。古いキャッシュによる上書きを防ぎ、進捗の減少・リセットとオフライン再試行に対応。起動・復帰・再接続時および実行中5分ごとに同期。',
+      en: 'Desktop beta 0.4.1: uploads watched progress through Bangumi episode states and verifies it; prevents stale cache rollback, supports decreases/reset and durable offline retries. Syncs at startup, foreground, reconnection and every 5 minutes while running.',
+    },
+  },
+  {
     d: '2026-10-12',
     x: {
       'zh-Hans': '桌面端 beta 0.4.0:新增独立更新中心、放送前后提醒与快捷操作、待看清单及进度撤销、7 天自动备份与安全恢复、可同步的搁置状态、显示密度与字体封面调整及跟随系统主题',

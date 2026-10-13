@@ -15,10 +15,14 @@
 import type { BgmAccount, CollectMemo, Tracking, WatchStatus } from '../types'
 import { remoteFetch } from './native'
 import { clearCacheKey, readCache, writeCache } from './api'
+import { continuousEpisodeProgress, planEpisodeProgress, type BgmEpisodeCollection } from './bgmEpisodes'
 
 const API = 'https://api.bgm.tv'
 const ACC_KEY = 'btt:bgm'
 const QUEUE_KEY = 'btt:bgm:queue'
+export const BGM_SYNC_INTERVAL = 5 * 60_000
+const PULL_TTL = 60_000
+let remoteRevision = 0
 /** 「看过」全量可达上千条,只拉到最早归档季(2024Q4)之前一点为止 */
 const DONE_CUTOFF = '2024-09-01'
 
@@ -68,11 +72,31 @@ export interface RemotePull {
   onHold: number[]
 }
 
-/** 拉取自己的动画收藏(带 Authorization 可含私有条目),缓存 1 小时 */
-export async function pullCollections(acc: BgmAccount, force = false): Promise<RemotePull> {
-  const key = `bgm:pull:v2:${acc.username}`
+/** Fresh episode states, paginated to include long-running shows and progress resets. */
+async function fetchEpisodeCollections(acc: BgmAccount, id: number): Promise<BgmEpisodeCollection[]> {
+  const items: BgmEpisodeCollection[] = []
+  for (let page = 0, offset = 0; page < 100; page++, offset += 1000) {
+    const resp = await authed(acc.token, `/v0/users/-/collections/${id}/episodes?episode_type=0&limit=1000&offset=${offset}`)
+    if (!resp.ok) throw new Error(`番剧 ${id} 章节读取失败: HTTP ${resp.status}`)
+    const data = await resp.json()
+    if (!Array.isArray(data.data) || !Number.isSafeInteger(data.total) || data.total < 0) throw new Error(`番剧 ${id} 章节数据无效`)
+    if (!data.data.every((item: BgmEpisodeCollection) => item?.episode && Number.isSafeInteger(item.episode.id)
+      && typeof item.episode.type === 'number' && typeof item.episode.sort === 'number' && typeof item.type === 'number')) {
+      throw new Error(`番剧 ${id} 章节数据无效`)
+    }
+    items.push(...data.data)
+    if (offset + data.data.length >= data.total) return items
+    if (data.data.length !== 1000) throw new Error(`番剧 ${id} 章节数据不完整`)
+  }
+  throw new Error(`番剧 ${id} 章节数量超出安全上限`)
+}
+
+/** Personal progress has a short cache; startup/manual/focus/online refreshes bypass it. */
+export async function pullCollections(acc: BgmAccount, force = false, attempt = 0): Promise<RemotePull> {
+  const revision = remoteRevision
+  const key = `bgm:pull:v3:${acc.username}`
   if (!force) {
-    const hit = readCache<RemotePull>(key, 3600_000)
+    const hit = readCache<RemotePull>(key, PULL_TTL)
     if (hit) return hit
   }
   const out: RemotePull = { status: {}, watched: {}, rates: {}, memos: {}, onHold: [] }
@@ -88,7 +112,13 @@ export async function pullCollections(acc: BgmAccount, force = false): Promise<R
       let pastCutoff = false
       for (const c of data.data ?? []) {
         out.status[c.subject_id] = TYPE_TO_STATUS[type]
-        if (c.ep_status > 0) out.watched[c.subject_id] = c.ep_status
+        if (Number.isSafeInteger(c.ep_status) && c.ep_status >= 0) {
+          out.watched[c.subject_id] = c.ep_status
+          // Active progress must not mistake SPs or non-contiguous watches for a prefix.
+          if (c.ep_status > 0 && (type === 3 || type === 4)) {
+            out.watched[c.subject_id] = continuousEpisodeProgress(await fetchEpisodeCollections(acc, c.subject_id))
+          }
+        }
         if (c.rate > 0) out.rates[c.subject_id] = c.rate
         const memo: CollectMemo = {}
         if (Array.isArray(c.tags) && c.tags.length > 0) memo.tags = c.tags
@@ -100,6 +130,10 @@ export async function pullCollections(acc: BgmAccount, force = false): Promise<R
       if (offset + 50 >= (data.total ?? 0) || pastCutoff) break
     }
   }
+  if (revision !== remoteRevision) {
+    if (attempt >= 2) throw new Error('同步期间有新进度上传，请稍后重试')
+    return pullCollections(acc, true, attempt + 1)
+  }
   writeCache(key, out)
   return out
 }
@@ -107,6 +141,7 @@ export async function pullCollections(acc: BgmAccount, force = false): Promise<R
 export function clearPullCache(username: string) {
   clearCacheKey(`bgm:pull:${username}`)
   clearCacheKey(`bgm:pull:v2:${username}`)
+  clearCacheKey(`bgm:pull:v3:${username}`)
 }
 
 // ── 写回队列(localStorage,断网/刷新不丢) ──────────────────────────
@@ -114,15 +149,20 @@ export function clearPullCache(username: string) {
 export interface PushPatch {
   type: number
   ep?: number
+  rewind?: boolean // Only an explicit local decrease may clear later watched episodes.
   rate?: number // 0 = 清除评分
   tags?: string[]
   comment?: string // '' = 清空吐槽
   private?: boolean
   tries?: number
+  retryAt?: number
+  revision?: number
 }
 type Queue = Record<string, PushPatch>
+let volatileQueue: Queue | null = null
 
 function loadQueue(): Queue {
+  if (volatileQueue) return JSON.parse(JSON.stringify(volatileQueue))
   try {
     return JSON.parse(localStorage.getItem(QUEUE_KEY) ?? '{}')
   } catch {
@@ -132,12 +172,16 @@ function loadQueue(): Queue {
 function saveQueue(q: Queue) {
   try {
     localStorage.setItem(QUEUE_KEY, JSON.stringify(q))
-  } catch {}
+    volatileQueue = null
+  } catch {
+    // Still protect local edits against a cloud pull if disk/quota is unavailable.
+    volatileQueue = JSON.parse(JSON.stringify(q))
+  }
 }
 
-export function enqueuePush(id: number, patch: Omit<PushPatch, 'tries'>) {
+export function enqueuePush(id: number, patch: Omit<PushPatch, 'tries' | 'retryAt' | 'revision'>) {
   const q = loadQueue()
-  q[id] = { ...q[id], ...patch, tries: 0 }
+  q[id] = { ...q[id], ...patch, tries: 0, retryAt: undefined, revision: (q[id]?.revision ?? 0) + 1 }
   saveQueue(q)
 }
 
@@ -146,65 +190,117 @@ export function queuedIds(): Set<number> {
 }
 
 export function clearQueue() {
+  queueGeneration++
+  volatileQueue = null
   try {
     localStorage.removeItem(QUEUE_KEY)
   } catch {}
 }
 
-let draining = false
+let queueGeneration = 0
+let drainTask: { username: string; generation: number; promise: Promise<DrainResult> } | null = null
 
-/** 逐条 POST /v0/users/-/collections/{id}(新增或修改)。遇 401/403 抛 BgmAuthError 停止。 */
-export async function drainQueue(acc: BgmAccount): Promise<void> {
-  if (draining) return
-  draining = true
-  try {
+export interface DrainResult {
+  uploaded: number
+  pending: number
+  error?: string
+  nextRetryAt?: number
+  confirmedProgress: Record<number, number>
+}
+
+async function writeEpisodeProgress(acc: BgmAccount, id: number, patch: PushPatch, current: () => boolean): Promise<number> {
+  const target = patch.ep!
+  const items = await fetchEpisodeCollections(acc, id)
+  if (!current()) throw new Error('进度已修改，等待上传最新改动')
+  const plan = planEpisodeProgress(items, target, patch.rewind === true)
+  for (const [type, ids] of [[2, plan.watched], [0, plan.unwatched]] as const) {
+    for (let i = 0; i < ids.length; i += 100) {
+      if (!current()) throw new Error('进度已修改，等待上传最新改动')
+      const resp = await authed(acc.token, `/v0/users/-/collections/${id}/episodes`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ episode_id: ids.slice(i, i + 100), type }),
+      })
+      if (!resp.ok) throw new Error(`番剧 ${id} 集数上传失败: HTTP ${resp.status}`)
+      remoteRevision++; clearPullCache(acc.username)
+      await new Promise(resolve => setTimeout(resolve, 250))
+    }
+  }
+  if (!current()) throw new Error('进度已修改，等待上传最新改动')
+  const verified = continuousEpisodeProgress(await fetchEpisodeCollections(acc, id))
+  if (verified < target || (patch.rewind && verified !== target)) throw new Error(`番剧 ${id} 集数尚未确认，已保留等待重试`)
+  return verified
+}
+
+/** Metadata uses POST; anime progress uses the episode PATCH API and is read back. */
+export function drainQueue(acc: BgmAccount, force = false): Promise<DrainResult> {
+  if (drainTask) {
+    if (drainTask.username === acc.username && drainTask.generation === queueGeneration) return drainTask.promise
+    return drainTask.promise.catch(() => undefined).then(() => drainQueue(acc, force))
+  }
+  const generation = queueGeneration
+  const promise = (async (): Promise<DrainResult> => {
+    const result: DrainResult = { uploaded: 0, pending: 0, confirmedProgress: {} }
     const ids = Object.keys(loadQueue())
     for (const id of ids) {
+      if (generation !== queueGeneration) break
       const patch = loadQueue()[id]
-      if (!patch) continue
+      if (!patch || (!force && (patch.retryAt ?? 0) > Date.now())) continue
+      const current = () => generation === queueGeneration && loadQueue()[id]?.revision === patch.revision
       const body: Record<string, unknown> = { type: patch.type }
-      if (patch.ep !== undefined) body.ep_status = patch.ep
       if (patch.rate !== undefined) body.rate = patch.rate
       if (patch.tags !== undefined) body.tags = patch.tags
       if (patch.comment !== undefined) body.comment = patch.comment
       if (patch.private !== undefined) body.private = patch.private
-      let ok = false
       try {
         const resp = await authed(acc.token, `/v0/users/-/collections/${id}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(body),
         })
-        ok = resp.ok
+        if (!resp.ok) throw new Error(`番剧 ${id} 收藏上传失败: HTTP ${resp.status}`)
+        remoteRevision++; clearPullCache(acc.username)
+        const progress = patch.ep === undefined ? undefined : await writeEpisodeProgress(acc, Number(id), patch, current)
+        if (current()) {
+          const q = loadQueue(); delete q[id]; saveQueue(q)
+          result.uploaded++
+          if (progress !== undefined) result.confirmedProgress[Number(id)] = progress
+        }
       } catch (e) {
         if (e instanceof BgmAuthError) throw e
-        // 网络错误:留在队列,下次再试
+        if (current()) {
+          const q = loadQueue()
+          q[id].tries = Math.min((q[id].tries ?? 0) + 1, 1000)
+          q[id].retryAt = Date.now() + Math.min(30 * 60_000, 15_000 * 2 ** Math.min(q[id].tries! - 1, 7))
+          saveQueue(q)
+          result.error = e instanceof Error ? e.message : '网络或服务器错误'
+        }
       }
-      const q = loadQueue() // 期间可能有新入队,重读后再改
-      if (ok) delete q[id]
-      else if (q[id]) {
-        q[id].tries = (q[id].tries ?? 0) + 1
-        if (q[id].tries! >= 5) delete q[id] // 多次失败放弃,避免死信堵队列
-      }
-      saveQueue(q)
       await new Promise((r) => setTimeout(r, 250)) // 写接口逐条慢速,不冲 API
     }
-  } finally {
-    draining = false
-  }
+    if (generation === queueGeneration) {
+      const pending = Object.values(loadQueue())
+      result.pending = pending.length
+      if (pending.length) result.nextRetryAt = Math.min(...pending.map(patch => patch.retryAt ?? Date.now() + 1500))
+      if (volatileQueue) result.error = '本机同步队列未能写入磁盘，请保持客户端运行并导出备份。' + (result.error ? ` ${result.error}` : '')
+    }
+    return result
+  })().finally(() => { if (drainTask?.promise === promise) drainTask = null })
+  drainTask = { username: acc.username, generation, promise }
+  return promise
 }
 
 /**
  * 云端状态合并进本机。
  * 首次连接:状态本机优先、进度取较大值,差异作为 pushes 返回(推回 bgm)。
- * 此后:bgm 为准(写回队列里尚未推送的条目除外);进度只在云端 > 0 时覆盖,
- * 避免"看过但 bgm 未记集数"这类条目把本机进度抹掉。
+ * 此后:bgm 为准(写回队列里尚未推送的条目除外)，明确的零进度也同步。
+ * 升级后的首次修复只补传本机较大的历史进度，不自动倒退云端进度。
  */
 export function mergeRemote(
   local: Tracking,
   remote: RemotePull,
   firstMerge: boolean,
   queued: Set<number>,
+  repairProgress = false,
 ): { tracking: Tracking; pushes: Record<number, PushPatch> } {
   const status = { ...local.status }
   const watched = { ...local.watched }
@@ -217,6 +313,7 @@ export function mergeRemote(
 
   const ids = new Set<number>(Object.keys(remoteStatus).map(Number))
   if (firstMerge) for (const k of Object.keys(local.status)) ids.add(Number(k))
+  if (repairProgress) for (const k of Object.keys(local.watched)) ids.add(Number(k))
 
   for (const id of ids) {
     if (queued.has(id)) continue
@@ -248,11 +345,16 @@ export function mergeRemote(
       }
     } else {
       if (rs) status[id] = rs
-      if (rw > 0) watched[id] = rw
+      if (Object.prototype.hasOwnProperty.call(remote.watched, id)) watched[id] = rw
       if (rr > 0) rates[id] = rr
       if (rs) {
         if (rm) memos[id] = rm
         else delete memos[id] // bgm 为准:云端清空了就清空
+      }
+      if (repairProgress && (local.watched[id] ?? 0) > rw) {
+        const type = rs ?? local.status[id] ?? 'watching'
+        watched[id] = local.watched[id]
+        pushes[id] = { type: STATUS_TO_TYPE[type], ep: watched[id], rewind: false }
       }
     }
   }

@@ -447,10 +447,10 @@ const DICT: Record<string, [string, string, string]> = {
     '“Sign in with Bangumi” opens bgm.tv authorization (you must be logged in on bgm.tv). Tokens last 7 days and auto-renew. ',
   ],
   也可在: ['也可在', 'または', 'Or create a personal token at '],
-  '生成个人令牌(建议选一年有效期)粘贴连接。令牌只保存在本机浏览器,不进备份文件,可随时吊销。 连接后:应用内的追番改动即时写回 bgm.tv;bgm.tv 侧的改动每半小时拉取合并(以 bgm 为准)。 首次连接会双向合并(状态本机优先、进度取较大值)。bgm 的「搁置」保留进度并暂停提醒; 本地取消追番不会删除 bgm 收藏。': [
-    '生成個人權杖(建議選一年有效期)貼上連接。權杖只保存在本機瀏覽器,不進備份檔案,可隨時吊銷。連接後應用內改動寫回 bgm.tv，雲端改動每半小時合併。首次連接本機狀態優先、進度取較大值。「擱置」保留進度並暫停提醒；本機取消追番不會刪除雲端收藏。',
-    'で個人トークンを発行(有効期間1年推奨)して貼り付け。端末にのみ保存されバックアップには含まれません。アプリ内の変更はbgm.tvへ反映、クラウドの変更は30分ごとにマージ。初回は端末の状態と大きい方の進捗を優先。「保留」は進捗を保持して通知を停止。端末で追跡解除してもクラウドの収蔵は削除されません。',
-    'and paste it here (1-year validity recommended). The token stays on this device and is excluded from backups. In-app changes push to bgm.tv; cloud changes merge every 30 min. First connection prefers local status and higher progress. On hold retains progress and pauses reminders; untracking locally never deletes cloud collections.',
+  '生成个人令牌(建议选一年有效期)粘贴连接。令牌只保存在本机浏览器,不进备份文件,可随时吊销。 连接后:应用内的追番改动写回 bgm.tv;云端改动每 5 分钟检查，并在切回窗口或恢复联网时刷新。 首次连接会双向合并(状态本机优先、进度取较大值)。bgm 的「搁置」保留进度并暂停提醒; 本地取消追番不会删除 bgm 收藏。': [
+    '生成個人權杖(建議選一年有效期)貼上連接。權杖只保存在本機瀏覽器，不進備份，可隨時撤銷。應用內改動寫回 bgm.tv；雲端改動每5分鐘檢查，切回視窗或恢復連線時更新。首次本機狀態優先、進度取較大值。「擱置」保留進度並暫停提醒；取消本機追番不刪除雲端收藏。',
+    'で個人トークンを発行して貼り付け(有効期間1年推奨)。端末にのみ保存し、バックアップには含めません。変更をbgm.tvへ送信し、5分ごと・ウィンドウ復帰・再接続時に同期。初回は端末の状態と大きい進捗を優先。「保留」は進捗を保持して通知を停止。追跡解除してもクラウド収蔵は削除しません。',
+    'and paste a personal token here (1-year validity recommended). It stays on this device, outside backups, and can be revoked. Changes push to bgm.tv; cloud data refreshes every 5 minutes, on foreground and reconnection. Initial merge prefers local status and higher progress. On hold preserves progress and stops reminders; local untracking never deletes cloud collections.',
   ],
   '数据来源:Bangumi 官方 API(每 6 小时缓存)· bangumi-data 数据集(jsDelivr CDN,每日缓存)· 每集精确时刻来自': [
     '資料來源:Bangumi 官方 API(每 6 小時快取)· bangumi-data 資料集(jsDelivr CDN,每日快取)· 每集精確時刻來自',

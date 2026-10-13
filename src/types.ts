@@ -112,6 +112,7 @@ export interface BgmAccount {
   nickname: string
   avatar?: string
   mergedOnce?: boolean // 首次双向合并已完成,此后拉取以 bgm 为准
+  episodeSyncVersion?: number // One-time, non-decreasing repair of legacy failed progress uploads.
   invalid?: boolean // 令牌已失效(401),等用户重新登录
   kind?: 'token' | 'oauth' // 缺省 = 'token'(手动粘贴的个人令牌)
   refreshToken?: string // 仅 oauth:用于到期前静默续期
