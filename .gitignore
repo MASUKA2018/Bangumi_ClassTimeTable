@@ -8,3 +8,17 @@ src-tauri/gen/schemas/
 __pycache__/
 .venv/
 scripts/cache/
+
+# Secrets stay outside Git, even when the source repository is public.
+.env
+.env.*
+!.env.example
+signing/
+*.key
+*.pem
+*.p12
+*.pfx
+*.keystore
+*.jks
+id_rsa
+id_ed25519

@@ -50,7 +50,7 @@ npm run desktop:build -- --bundles nsis
 ## 0.4 更新、提醒与安全恢复
 
 - 更新中心把程序版本与放送数据分开：数据可立即刷新并保留失败前的数据；程序默认在启动后检查（一天至多一次成功检查），发现新版后需用户确认安装，不会自动安装。
-- 公开数据仓库 Releases 只发布平台安装包、`.sig` 和 `latest.json`，不上传客户端源码。更新器仅接受配置的 HTTPS 地址与内置公钥验证的文件。本次发布只登记已实际构建的 Windows x64 平台；macOS 须在 Mac 上构建签名包后再加入对应平台，不能用 Windows 安装包代替。
+- 客户端源码在本仓库以 MIT 许可证公开；配套数据仓库 Releases 发布平台安装包、`.sig` 和 `latest.json`。更新器仅接受配置的 HTTPS 地址与内置公钥验证的文件。发布清单只能登记已实际构建并签名的平台；macOS 须在 Mac 上构建签名包，不能用 Windows 安装包代替。
 - 签名构建必须设置环境变量 `TAURI_SIGNING_PRIVATE_KEY`（可为仓库外私钥的完整路径）及可选 `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`，不要将私钥写入源码、日志或提交 Git。公钥在 `tauri.conf.json` 中。签名私钥丢失将无法继续为已有安装版本发布可信更新，请离线安全备份。
 - CI 未配置签名 Secrets 时使用 `--config src-tauri/tauri.unsigned.conf.json` 生成普通安装包；它不能充当自动更新包。CI 不会自动发布到公开仓库。
 - 在看逐集提醒可设为放送前／后 0、5、10、15、30 分钟；只补发最近 5 分钟的错过提醒，避免启动时刷屏。提醒支持详情、10 分钟后再提醒、看到本集；放送前不允许标记本集。暂停、看过、抛弃不再提醒，未在看可仅提醒想看。
@@ -80,7 +80,7 @@ Android 与桌面端共用数据和业务代码。手机窄屏默认进入日视
 
 客户端运行时直接读取 Bangumi 官方 API 与 bangumi-data；`public/data/enhance.json` 提供停播、提前播出和逐集时间等校正。原生客户端每 12 小时从公开的 [`MASUKA2018/Bangumi_ClassTimeTable`](https://github.com/MASUKA2018/Bangumi_ClassTimeTable) 数据仓库检查最新校正，失败时回退到上次成功缓存或安装包内置数据。
 
-`BGM_WIKI_TOKEN` 只配置在公开数据仓库的 GitHub Actions Secrets 中。私有客户端仓库不保存该 Token，也不运行数据同步和网页部署工作流。公开数据仓库每天 `22:20 UTC` 自动更新，即北京时间次日 06:20、日本时间次日 07:20。
+`BGM_WIKI_TOKEN` 只配置在数据仓库的 GitHub Actions Secrets 中。客户端源码仓库不保存该 Token，也不运行数据同步和网页部署工作流。数据仓库每天 `22:20 UTC` 自动更新，即北京时间次日 06:20、日本时间次日 07:20。
 
 默认数据地址已经写入客户端源码。需要切换到其他公开数据源时，可以复制 `.env.example` 为 `.env.production.local`，修改地址后重新构建安装包：
 
