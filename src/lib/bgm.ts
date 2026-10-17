@@ -20,6 +20,7 @@ import { continuousEpisodeProgress, planEpisodeProgress, type BgmEpisodeCollecti
 const API = 'https://api.bgm.tv'
 const ACC_KEY = 'btt:bgm'
 const QUEUE_KEY = 'btt:bgm:queue'
+const CONFIRMED_KEY = 'btt:bgm:confirmed:v1'
 export const BGM_SYNC_INTERVAL = 5 * 60_000
 const PULL_TTL = 60_000
 let remoteRevision = 0
@@ -49,6 +50,7 @@ export class BgmAuthError extends Error {}
 
 async function authed(token: string, path: string, init?: RequestInit): Promise<Response> {
   const resp = await remoteFetch(API + path, {
+    cache: 'no-store', // Personal progress must bypass the webview's HTTP cache too.
     ...init,
     headers: { Authorization: `Bearer ${token}`, ...(init?.headers ?? {}) },
   })
@@ -70,22 +72,70 @@ export interface RemotePull {
   rates: Record<number, number>
   memos: Record<number, CollectMemo>
   onHold: number[]
+  /** A failed chapter read is unknown, never a zero-progress snapshot. */
+  issues?: Record<number, string>
+  updatedAt?: Record<number, number>
+  checkedProgress?: number[]
+}
+
+interface ProgressProof { value: number; rewind: boolean; confirmedAt: number }
+interface ConfirmedState { username: string; progress: Record<number, ProgressProof> }
+let volatileConfirmed: ConfirmedState | null = null
+
+function loadConfirmed(username: string): Record<number, ProgressProof> {
+  try {
+    const saved: ConfirmedState | null = volatileConfirmed ?? JSON.parse(localStorage.getItem(CONFIRMED_KEY) ?? 'null')
+    return saved?.username === username ? { ...saved.progress } : {}
+  } catch { return {} }
+}
+
+function saveConfirmed(username: string, progress: Record<number, ProgressProof>) {
+  const saved = { username, progress }
+  try {
+    if (Object.keys(progress).length) localStorage.setItem(CONFIRMED_KEY, JSON.stringify(saved))
+    else localStorage.removeItem(CONFIRMED_KEY)
+    volatileConfirmed = null
+  } catch { volatileConfirmed = saved }
+}
+
+/** Keep a verified local write safe until a subsequent full pull agrees with it. */
+function checkConfirmed(acc: BgmAccount, remote: RemotePull) {
+  const proofs = loadConfirmed(acc.username), queued = queuedIds()
+  for (const [id, proof] of Object.entries(proofs)) {
+    if (queued.has(Number(id))) continue
+    const actual = remote.watched[Number(id)]
+    // A genuinely newer cloud edit (including a reset on the other device)
+    // supersedes our receipt. Compare server time, not the machines' timezones.
+    const newer = (remote.updatedAt?.[Number(id)] ?? 0) > proof.confirmedAt
+    if (actual !== undefined && (actual === proof.value || (!proof.rewind && actual > proof.value) || newer)) {
+      delete proofs[Number(id)]
+    } else {
+      delete remote.watched[Number(id)]
+      ;(remote.issues ??= {})[Number(id)] ??= `番剧 ${id} 云端与刚上传的进度不一致，已保留本机记录，请稍后重试`
+    }
+  }
+  saveConfirmed(acc.username, proofs)
 }
 
 /** Fresh episode states, paginated to include long-running shows and progress resets. */
-async function fetchEpisodeCollections(acc: BgmAccount, id: number): Promise<BgmEpisodeCollection[]> {
+async function fetchEpisodeCollections(acc: BgmAccount, id: number): Promise<{ items: BgmEpisodeCollection[]; checkedAt: number }> {
   const items: BgmEpisodeCollection[] = []
+  let checkedAt = Math.floor(Date.now() / 1000) * 1000
   for (let page = 0, offset = 0; page < 100; page++, offset += 1000) {
     const resp = await authed(acc.token, `/v0/users/-/collections/${id}/episodes?episode_type=0&limit=1000&offset=${offset}`)
     if (!resp.ok) throw new Error(`番剧 ${id} 章节读取失败: HTTP ${resp.status}`)
+    const serverTime = Date.parse(resp.headers.get('Date') ?? '')
+    if (Number.isFinite(serverTime)) checkedAt = serverTime
     const data = await resp.json()
+    // Go encodes its nil slice as null when a subject has no chapters yet.
+    if (data.data === null && data.total === 0) return { items, checkedAt }
     if (!Array.isArray(data.data) || !Number.isSafeInteger(data.total) || data.total < 0) throw new Error(`番剧 ${id} 章节数据无效`)
     if (!data.data.every((item: BgmEpisodeCollection) => item?.episode && Number.isSafeInteger(item.episode.id)
       && typeof item.episode.type === 'number' && typeof item.episode.sort === 'number' && typeof item.type === 'number')) {
       throw new Error(`番剧 ${id} 章节数据无效`)
     }
     items.push(...data.data)
-    if (offset + data.data.length >= data.total) return items
+    if (offset + data.data.length >= data.total) return { items, checkedAt }
     if (data.data.length !== 1000) throw new Error(`番剧 ${id} 章节数据不完整`)
   }
   throw new Error(`番剧 ${id} 章节数量超出安全上限`)
@@ -94,8 +144,9 @@ async function fetchEpisodeCollections(acc: BgmAccount, id: number): Promise<Bgm
 /** Personal progress has a short cache; startup/manual/focus/online refreshes bypass it. */
 export async function pullCollections(acc: BgmAccount, force = false, attempt = 0): Promise<RemotePull> {
   const revision = remoteRevision
-  const key = `bgm:pull:v3:${acc.username}`
-  if (!force) {
+  const key = `bgm:pull:v4:${acc.username}`
+  const confirming = loadConfirmed(acc.username)
+  if (!force && !Object.keys(confirming).length) {
     const hit = readCache<RemotePull>(key, PULL_TTL)
     if (hit) return hit
   }
@@ -109,15 +160,26 @@ export async function pullCollections(acc: BgmAccount, force = false, attempt = 
       )
       if (!resp.ok) throw new Error(`拉取收藏(type=${type}): HTTP ${resp.status}`)
       const data = await resp.json()
+      if (!Array.isArray(data.data) || !Number.isSafeInteger(data.total) || data.total < 0) throw new Error(`收藏数据无效(type=${type})`)
       let pastCutoff = false
-      for (const c of data.data ?? []) {
+      for (const c of data.data) {
         out.status[c.subject_id] = TYPE_TO_STATUS[type]
-        if (Number.isSafeInteger(c.ep_status) && c.ep_status >= 0) {
-          out.watched[c.subject_id] = c.ep_status
-          // Active progress must not mistake SPs or non-contiguous watches for a prefix.
-          if (c.ep_status > 0 && (type === 3 || type === 4)) {
-            out.watched[c.subject_id] = continuousEpisodeProgress(await fetchEpisodeCollections(acc, c.subject_id))
+        const updatedAt = Date.parse(c.updated_at ?? '')
+        if (Number.isFinite(updatedAt)) (out.updatedAt ??= {})[c.subject_id] = updatedAt
+        if (type === 3 || type === 4 || confirming[c.subject_id]) {
+          // The summary can lag behind a confirmed chapter write (including zero).
+          // Never use it as a gate for reading the actual episode collection.
+          try {
+            const { items: chapters } = await fetchEpisodeCollections(acc, c.subject_id)
+            if (chapters.length === 0 && c.ep_status > 0) throw new Error(`番剧 ${c.subject_id} 暂无可核对的章节，已保留本机进度`)
+            out.watched[c.subject_id] = continuousEpisodeProgress(chapters)
+            ;(out.checkedProgress ??= []).push(c.subject_id)
+          } catch (error) {
+            if (error instanceof BgmAuthError) throw error
+            ;(out.issues ??= {})[c.subject_id] = error instanceof Error ? error.message : `番剧 ${c.subject_id} 章节读取失败`
           }
+        } else if (Number.isSafeInteger(c.ep_status) && c.ep_status >= 0) {
+          out.watched[c.subject_id] = c.ep_status
         }
         if (c.rate > 0) out.rates[c.subject_id] = c.rate
         const memo: CollectMemo = {}
@@ -134,7 +196,9 @@ export async function pullCollections(acc: BgmAccount, force = false, attempt = 
     if (attempt >= 2) throw new Error('同步期间有新进度上传，请稍后重试')
     return pullCollections(acc, true, attempt + 1)
   }
-  writeCache(key, out)
+  checkConfirmed(acc, out)
+  // Partial failures must be retried, not reused as a successful cached snapshot.
+  if (!Object.keys(out.issues ?? {}).length) writeCache(key, out)
   return out
 }
 
@@ -142,6 +206,7 @@ export function clearPullCache(username: string) {
   clearCacheKey(`bgm:pull:${username}`)
   clearCacheKey(`bgm:pull:v2:${username}`)
   clearCacheKey(`bgm:pull:v3:${username}`)
+  clearCacheKey(`bgm:pull:v4:${username}`)
 }
 
 // ── 写回队列(localStorage,断网/刷新不丢) ──────────────────────────
@@ -192,8 +257,10 @@ export function queuedIds(): Set<number> {
 export function clearQueue() {
   queueGeneration++
   volatileQueue = null
+  volatileConfirmed = null
   try {
     localStorage.removeItem(QUEUE_KEY)
+    localStorage.removeItem(CONFIRMED_KEY)
   } catch {}
 }
 
@@ -208,9 +275,9 @@ export interface DrainResult {
   confirmedProgress: Record<number, number>
 }
 
-async function writeEpisodeProgress(acc: BgmAccount, id: number, patch: PushPatch, current: () => boolean): Promise<number> {
+async function writeEpisodeProgress(acc: BgmAccount, id: number, patch: PushPatch, current: () => boolean): Promise<{ progress: number; confirmedAt: number }> {
   const target = patch.ep!
-  const items = await fetchEpisodeCollections(acc, id)
+  const { items } = await fetchEpisodeCollections(acc, id)
   if (!current()) throw new Error('进度已修改，等待上传最新改动')
   const plan = planEpisodeProgress(items, target, patch.rewind === true)
   for (const [type, ids] of [[2, plan.watched], [0, plan.unwatched]] as const) {
@@ -226,9 +293,10 @@ async function writeEpisodeProgress(acc: BgmAccount, id: number, patch: PushPatc
     }
   }
   if (!current()) throw new Error('进度已修改，等待上传最新改动')
-  const verified = continuousEpisodeProgress(await fetchEpisodeCollections(acc, id))
+  const snapshot = await fetchEpisodeCollections(acc, id)
+  const verified = continuousEpisodeProgress(snapshot.items)
   if (verified < target || (patch.rewind && verified !== target)) throw new Error(`番剧 ${id} 集数尚未确认，已保留等待重试`)
-  return verified
+  return { progress: verified, confirmedAt: snapshot.checkedAt }
 }
 
 /** Metadata uses POST; anime progress uses the episode PATCH API and is read back. */
@@ -259,11 +327,16 @@ export function drainQueue(acc: BgmAccount, force = false): Promise<DrainResult>
         })
         if (!resp.ok) throw new Error(`番剧 ${id} 收藏上传失败: HTTP ${resp.status}`)
         remoteRevision++; clearPullCache(acc.username)
-        const progress = patch.ep === undefined ? undefined : await writeEpisodeProgress(acc, Number(id), patch, current)
+        const verified = patch.ep === undefined ? undefined : await writeEpisodeProgress(acc, Number(id), patch, current)
         if (current()) {
+          if (verified !== undefined) {
+            const proofs = loadConfirmed(acc.username)
+            proofs[Number(id)] = { value: verified.progress, rewind: patch.rewind === true, confirmedAt: verified.confirmedAt }
+            saveConfirmed(acc.username, proofs)
+          }
           const q = loadQueue(); delete q[id]; saveQueue(q)
           result.uploaded++
-          if (progress !== undefined) result.confirmedProgress[Number(id)] = progress
+          if (verified !== undefined) result.confirmedProgress[Number(id)] = verified.progress
         }
       } catch (e) {
         if (e instanceof BgmAuthError) throw e
@@ -316,7 +389,7 @@ export function mergeRemote(
   if (repairProgress) for (const k of Object.keys(local.watched)) ids.add(Number(k))
 
   for (const id of ids) {
-    if (queued.has(id)) continue
+    if (queued.has(id) || remote.issues?.[id]) continue
     const rs = remoteStatus[id]
     const rw = remote.watched[id] ?? 0
     const rr = remote.rates[id] ?? 0

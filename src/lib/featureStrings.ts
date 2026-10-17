@@ -1,5 +1,7 @@
 /** Shared feature strings; Chinese text remains the canonical lookup key. */
 export const FEATURE_STRINGS: Record<string, [string, string, string]> = {
+  '已同步 {t}（上传 {uploaded} 条，核对 {checked} 部观看进度）': ['已同步 {t}（上傳 {uploaded} 筆，核對 {checked} 部觀看進度）', '同期済み {t}（{uploaded}件送信・{checked}作品の進捗確認）', 'Synced {t} ({uploaded} changes uploaded; {checked} shows checked)'],
+  '部分进度尚未核对，已保留本机记录（{n} 部）。': ['部分進度尚未核對，已保留本機記錄（{n} 部）。', '進捗を確認できない作品が{n}件あります。端末の記録を保持しました。', 'Progress could not be verified for {n} shows; local records were kept.'],
   '正在上传追番改动…': ['正在上傳追番改動…', '視聴データを送信中…', 'Uploading tracking changes…'],
   '已上传追番改动 {t}': ['已上傳追番改動 {t}', '視聴データを送信済み {t}', 'Tracking changes uploaded {t}'],
   '上传未完成，{n} 条改动已保存在本机，将自动重试。': ['上傳未完成，{n} 筆改動已儲存在本機，將自動重試。', '未送信の変更{n}件は端末に保存されています。自動で再試行します。', '{n} changes remain saved on this device and will retry automatically.'],

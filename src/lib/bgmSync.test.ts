@@ -91,6 +91,38 @@ describe('anime progress uploads', () => {
     expect(patches).toHaveLength(1)
   })
 
+  it('does not roll an acknowledged upload back when the collection summary still says zero', async () => {
+    fetch.mockImplementation(async (input, init) => {
+      const result = await server(input, init)
+      if (!init?.method && !new URL(String(input)).pathname.endsWith('/episodes')) {
+        const data = await result.json()
+        for (const item of data.data) item.ep_status = 0
+        return response(data)
+      }
+      return result
+    })
+    enqueuePush(1, { type: 3, ep: 3 })
+    const uploaded = await finish(drainQueue(account, true))
+    expect(uploaded.confirmedProgress[1]).toBe(3)
+    const remote = await pullCollections(account, true)
+    const local: Tracking = { status: { 1: 'watching' }, watched: { 1: 3 }, rates: {}, memos: {} }
+    expect(mergeRemote(local, remote, false, queuedIds()).tracking.watched[1]).toBe(3)
+  })
+
+  it('reads chapter states for a watching subject even when its aggregate is absent', async () => {
+    episodes = makeEpisodes(12, 3)
+    fetch.mockImplementation(async (input, init) => {
+      const result = await server(input, init)
+      if (!init?.method && !new URL(String(input)).pathname.endsWith('/episodes')) {
+        const data = await result.json()
+        for (const item of data.data) delete item.ep_status
+        return response(data)
+      }
+      return result
+    })
+    expect((await pullCollections(account, true)).watched[1]).toBe(3)
+  })
+
   it('invalidates its own old pull cache after an upload', async () => {
     episodes = makeEpisodes(12, 1)
     expect((await pullCollections(account)).watched[1]).toBe(1)
@@ -269,5 +301,153 @@ describe('legacy progress migration', () => {
     const result = mergeRemote(local, remote, false, new Set([1]))
     expect(result.tracking.watched[1]).toBe(3)
     expect(result.pushes).toEqual({})
+  })
+})
+
+describe('progress receipts and partial reads', () => {
+  const local: Tracking = { status: { 1: 'watching', 2: 'watching' }, watched: { 1: 3, 2: 7 }, rates: {}, memos: {} }
+
+  it('protects a verified upload from a later stale chapter snapshot and retries without caching the failure', async () => {
+    enqueuePush(1, { type: 3, ep: 3 })
+    await finish(drainQueue(account))
+    const actual = episodes
+    episodes = makeEpisodes(12)
+    const stale = await pullCollections(account, true)
+    expect(stale.watched[1]).toBeUndefined()
+    expect(stale.issues?.[1]).toContain('已保留本机记录')
+    const merged = mergeRemote(local, stale, false, queuedIds(), true)
+    expect(merged.tracking.watched[1]).toBe(3)
+    expect(merged.pushes[1]).toBeUndefined()
+    const calls = fetch.mock.calls.length
+    episodes = actual
+    expect((await pullCollections(account)).watched[1]).toBe(3)
+    expect(fetch.mock.calls.length).toBeGreaterThan(calls)
+  })
+
+  it('keeps the receipt across a process restart until the cloud pull agrees', async () => {
+    enqueuePush(1, { type: 3, ep: 3 })
+    await finish(drainQueue(account))
+    vi.resetModules()
+    const restarted = await import('./bgm')
+    episodes = makeEpisodes(12)
+    const stale = await restarted.pullCollections(account, true)
+    expect(stale.watched[1]).toBeUndefined()
+    expect(stale.issues?.[1]).toBeTruthy()
+    episodes = makeEpisodes(12, 3)
+    expect((await restarted.pullCollections(account, true)).watched[1]).toBe(3)
+    expect(localStorage.getItem('btt:bgm:confirmed:v1')).toBeNull()
+  })
+
+  it('does not let an older snapshot undo an explicit reset to zero', async () => {
+    episodes = makeEpisodes(12, 3)
+    enqueuePush(1, { type: 3, ep: 0, rewind: true })
+    expect((await finish(drainQueue(account))).confirmedProgress[1]).toBe(0)
+    episodes = makeEpisodes(12, 3)
+    const stale = await pullCollections(account, true)
+    expect(mergeRemote({ ...local, watched: { 1: 0 } }, stale, false, queuedIds()).tracking.watched[1]).toBe(0)
+    expect(stale.issues?.[1]).toBeTruthy()
+  })
+
+  it('accepts a genuinely newer reset on the other device rather than permanently taking the larger number', async () => {
+    enqueuePush(1, { type: 3, ep: 3 })
+    await finish(drainQueue(account))
+    episodes = makeEpisodes(12) // Device B resets after A's confirmed write.
+    fetch.mockImplementation(async (input, init) => {
+      const result = await server(input, init)
+      if (!new URL(String(input)).pathname.endsWith('/episodes')) {
+        const data = await result.json()
+        for (const item of data.data) item.updated_at = '2026-10-13T00:01:00Z'
+        return response(data)
+      }
+      return result
+    })
+    const remote = await pullCollections(account, true)
+    expect(remote.watched[1]).toBe(0)
+    expect(remote.issues).toBeUndefined()
+    expect(mergeRemote(local, remote, false, queuedIds()).tracking.watched[1]).toBe(0)
+  })
+
+  it('uses the server response clock when the client clock is inaccurate', async () => {
+    fetch.mockImplementation(async (input, init) => {
+      const result = await server(input, init)
+      result.headers.set('Date', 'Tue, 13 Oct 2026 01:00:00 GMT')
+      return result
+    })
+    enqueuePush(1, { type: 3, ep: 3 })
+    await finish(drainQueue(account))
+    const proof = JSON.parse(localStorage.getItem('btt:bgm:confirmed:v1')!).progress[1]
+    expect(proof.confirmedAt).toBe(Date.parse('2026-10-13T01:00:00Z'))
+  })
+
+  it('releases the receipt after agreement so a later intentional decrease still synchronizes', async () => {
+    enqueuePush(1, { type: 3, ep: 3 })
+    await finish(drainQueue(account))
+    expect((await pullCollections(account, true)).watched[1]).toBe(3)
+    episodes = makeEpisodes(12)
+    const reset = await pullCollections(account, true)
+    expect(reset.watched[1]).toBe(0)
+    expect(reset.issues).toBeUndefined()
+  })
+
+  it('also verifies a just-uploaded completed subject instead of trusting its stale aggregate', async () => {
+    enqueuePush(1, { type: 2, ep: 3 })
+    await finish(drainQueue(account))
+    fetch.mockImplementation(async (input, init) => {
+      const result = await server(input, init)
+      if (!new URL(String(input)).pathname.endsWith('/episodes')) {
+        const data = await result.json()
+        for (const item of data.data) item.ep_status = 0
+        return response(data)
+      }
+      return result
+    })
+    expect((await pullCollections(account, true)).watched[1]).toBe(3)
+  })
+
+  it('isolates an inaccessible subject without discarding healthy progress or fabricating zero', async () => {
+    episodes = makeEpisodes(12, 3)
+    fetch.mockImplementation(async (input, init) => {
+      const url = new URL(String(input))
+      if (url.pathname.endsWith('/collections/2/episodes')) return new Response(null, { status: 404 })
+      const result = await server(input, init)
+      if (url.searchParams.get('type') === '3') {
+        const data = await result.json()
+        data.data.push({ subject_id: 2, ep_status: 7 })
+        data.total++
+        return response(data)
+      }
+      return result
+    })
+    const remote = await pullCollections(account, true)
+    expect(remote.watched[1]).toBe(3)
+    expect(remote.watched[2]).toBeUndefined()
+    expect(remote.issues?.[2]).toContain('404')
+    const merged = mergeRemote(local, remote, false, queuedIds(), true)
+    expect(merged.tracking.watched).toEqual({ 1: 3, 2: 7 })
+    expect(merged.pushes).toEqual({})
+  })
+
+  it('accepts the official null/zero response for a subject with no chapters yet', async () => {
+    episodes = []
+    fetch.mockImplementation(async (input, init) => new URL(String(input)).pathname.endsWith('/episodes')
+      ? response({ data: null, total: 0 }) : server(input, init))
+    const remote = await pullCollections(account, true)
+    expect(remote.watched[1]).toBe(0)
+    expect(remote.issues).toBeUndefined()
+  })
+
+  it('does not infer zero if a nonzero summary has no readable chapters', async () => {
+    episodes = makeEpisodes(12, 3)
+    fetch.mockImplementation(async (input, init) => new URL(String(input)).pathname.endsWith('/episodes')
+      ? response({ data: null, total: 0 }) : server(input, init))
+    const remote = await pullCollections(account, true)
+    expect(remote.watched[1]).toBeUndefined()
+    expect(remote.issues?.[1]).toContain('暂无可核对')
+    expect(mergeRemote(local, remote, false, queuedIds()).tracking.watched[1]).toBe(3)
+  })
+
+  it('rejects an invalid collection response instead of showing an empty successful sync', async () => {
+    fetch.mockResolvedValue(response({ error: 'upstream unavailable' }))
+    await expect(pullCollections(account, true)).rejects.toThrow('收藏数据无效')
   })
 })

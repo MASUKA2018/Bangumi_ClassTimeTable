@@ -46,6 +46,14 @@ export async function syncNativeWindowTheme(id: ThemeId): Promise<void> {
 export async function remoteFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
   if (!isNativeApp()) return window.fetch(input, init)
   const { fetch } = await import('@tauri-apps/plugin-http')
+  if (init?.cache === 'no-store') {
+    // The Rust client does not implement Request.cache. Forward explicit cache
+    // directives so proxies cannot reuse a previous personal progress response.
+    const headers = new Headers(init.headers)
+    headers.set('Cache-Control', 'no-cache, no-store')
+    headers.set('Pragma', 'no-cache')
+    return fetch(input, { ...init, headers })
+  }
   return fetch(input, init)
 }
 

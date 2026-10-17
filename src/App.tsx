@@ -279,7 +279,9 @@ export default function App() {
     }
   }, [])
   const drainNow = useCallback(async (): Promise<void> => {
-    if (drainingRef.current || syncPausedRef.current) return
+    // A leftover debounce timer must not replace a pull/conflict error with an
+    // empty-queue "uploaded" success after the manual sync already finished.
+    if (drainingRef.current || syncPausedRef.current || queuedIds().size === 0) return
     drainingRef.current = true
     setSyncState(s => ({ ...s, msg: t('正在上传追番改动…'), busy: true, error: false }))
     let activeAccount = accountRef.current
@@ -313,6 +315,7 @@ export default function App() {
 
   const doSync = useCallback(async (force = false, retryUploads = false) => {
     if (syncingRef.current) return
+    if (drainTimer.current) { window.clearTimeout(drainTimer.current); drainTimer.current = null }
     syncingRef.current = true
     setSyncState((s) => ({ ...s, busy: true }))
     let activeAccount = accountRef.current
@@ -335,14 +338,18 @@ export default function App() {
       if (!isCurrentAccount(acc)) return
       applyConfirmedProgress(after)
       const pending = queuedIds().size
-      const nextAccount = { ...acc, mergedOnce: true, ...(pending === 0 ? { episodeSyncVersion: 1 } : {}) }
+      const issues = Object.values(remote.issues ?? {})
+      const nextAccount = { ...acc, mergedOnce: true, ...(pending === 0 && issues.length === 0 ? { episodeSyncVersion: 1 } : {}) }
       accountRef.current = nextAccount; setAccount(nextAccount)
       const at = new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
       setSyncState({
-        msg: pending ? t('已读取云端，{n} 条本机改动尚未上传，将自动重试。', { n: pending }) + (after.error ? ` ${after.error}` : '')
-          : t('已同步 {t}', { t: at }) + (after.error ? ` ${after.error}` : ''),
+        msg: (pending ? t('已读取云端，{n} 条本机改动尚未上传，将自动重试。', { n: pending })
+          : issues.length ? t('部分进度尚未核对，已保留本机记录（{n} 部）。', { n: issues.length })
+          : t('已同步 {t}（上传 {uploaded} 条，核对 {checked} 部观看进度）', {
+            t: at, uploaded: before.uploaded + (after === before ? 0 : after.uploaded), checked: remote.checkedProgress?.length ?? 0,
+          })) + (after.error ? ` ${after.error}` : '') + (issues.length ? ` ${issues.slice(0, 3).join('；')}` : ''),
         busy: false,
-        error: pending > 0 || !!after.error,
+        error: pending > 0 || !!after.error || issues.length > 0,
       })
       if (after.nextRetryAt) {
         if (drainTimer.current) window.clearTimeout(drainTimer.current)

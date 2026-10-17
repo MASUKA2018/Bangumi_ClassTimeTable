@@ -12,6 +12,15 @@ interface LogEntry {
 
 const CHANGELOG: LogEntry[] = [
   {
+    d: '2026-10-17',
+    x: {
+      'zh-Hans': '桌面端 beta 0.4.2：修复上传后立刻同步时观看集数回退的问题。在看／搁置始终读取章节状态，不再相信滞后的收藏汇总；保存上传核对记录并跳过个人 HTTP 缓存。部分失败保留本机进度并明确提示，成功时显示上传与核对数量。',
+      'zh-Hant': '桌面端 beta 0.4.2：修復上傳後立即同步時觀看集數倒退。在看／擱置一律讀取章節狀態，不再依賴落後的收藏彙總；保存上傳核對記錄並跳過個人 HTTP 快取。部分失敗保留本機進度並明確提示，成功時顯示上傳與核對數量。',
+      ja: 'デスクトップ beta 0.4.2：送信直後の同期で話数が戻る問題を修正。視聴中・保留は各話の状態を直接確認し、古い集計値を使いません。送信確認記録を保存して個人HTTPキャッシュを回避。部分失敗時は端末の進捗を保持し、送信・確認件数を表示。',
+      en: 'Desktop beta 0.4.2: fixes progress rollback when syncing immediately after an upload. Watching/on-hold shows always read episode states instead of stale aggregates. Persists upload receipts, bypasses personal HTTP caches, preserves local progress on partial failures and reports uploaded/verified counts.',
+    },
+  },
+  {
     d: '2026-10-13',
     x: {
       'zh-Hans': '桌面端 beta 0.4.1：修复跨设备观看集数上传，改用 Bangumi 章节状态接口并确认结果；旧缓存不再覆盖新进度，支持回退和清零，离线改动持续保留重试。启动、窗口恢复和恢复联网时刷新，运行中每 5 分钟同步。',
