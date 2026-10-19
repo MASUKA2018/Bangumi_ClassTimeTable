@@ -11,6 +11,8 @@ bgm 账号双向同步。
 
 ## 本仓库用途
 
+**客户端 beta 0.5.0（2026-10-19）：** 新增逐部同步明细与冲突处理、30 天进度历史及单部恢复、单部提醒与免打扰、脱敏诊断预览／导出、托盘今日待看操作；更新安装改用原生确认框并显示处理阶段。Windows 提供 EXE，macOS 提供 Apple Silicon 应用包，见 [Releases](https://github.com/MASUKA2018/Bangumi_ClassTimeTable/releases)。旧 Mac 版若点击更新没有反应，请手动替换一次应用，保留应用数据。详见 [0.5 使用说明](CLIENT.md#05-可靠性与便捷操作)。
+
 本仓库统一维护公开的 Windows / macOS 客户端源码、每日放送数据、构建流程和 [GitHub Releases 安装包与更新清单](https://github.com/MASUKA2018/Bangumi_ClassTimeTable/releases)。源码以 MIT 许可证开放；构建方式见 [CLIENT.md](CLIENT.md)，密钥管理见 [SECURITY.md](SECURITY.md)。Android 适配代码保留，当前发布与验证以 Windows / macOS 为主。
 
 2026-10-13 已合入原 [Bangumi_ClassTimeTable_Client](https://github.com/MASUKA2018/Bangumi_ClassTimeTable_Client) 的客户端源码及提交历史。后续开发、贡献和 [问题反馈](https://github.com/MASUKA2018/Bangumi_ClassTimeTable/issues) 集中在本仓库；旧客户端仓库仅作历史参考。

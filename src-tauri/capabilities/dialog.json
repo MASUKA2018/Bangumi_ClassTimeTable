@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "main-dialog",
+  "description": "Only the main window may ask for user confirmation",
+  "windows": ["main"],
+  "permissions": ["dialog:allow-confirm"]
+}

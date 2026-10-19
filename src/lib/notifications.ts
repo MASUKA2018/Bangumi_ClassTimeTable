@@ -48,6 +48,13 @@ export function parseReminderMinutes(value: string): number {
   return hour * 60 + minute
 }
 
+export function isQuietTime(settings: Settings, now: number): boolean {
+  if (!settings.quietHoursEnabled) return false
+  const p = partsInZone(now, displayTz(settings)), current = p.hh * 60 + p.mm
+  const start = parseReminderMinutes(settings.quietHoursStart), end = parseReminderMinutes(settings.quietHoursEnd)
+  return start === end || (start < end ? current >= start && current < end : current >= start || current < end)
+}
+
 export function reminderConfig(settings: Settings, kind: ReminderKind): { enabled: boolean; time: string } {
   return kind === 'watching'
     ? { enabled: settings.watchingReminderEnabled, time: settings.watchingReminderTime }
@@ -68,7 +75,7 @@ export function isDailyReminderDue(
   lastDay: string | null,
 ): boolean {
   const config = reminderConfig(settings, kind)
-  if (!config.enabled) return false
+  if (!config.enabled || isQuietTime(settings, now)) return false
   const key = reminderDayKey(now, settings)
   if (lastDay === key) return false
 
@@ -127,6 +134,7 @@ export function buildRichReminderPayload(
   kind: ReminderKind,
 ): RichReminderPayload {
   const matching = todayItems(shows, settings, now).filter(({ show }) => {
+    if (settings.showReminders?.[show.id]?.mode === 'off') return false
     const status = tracking.status[show.id]
     if (kind === 'watching') return status === 'watching'
     if (['watching', 'paused', 'done', 'dropped'].includes(status)) return false
@@ -154,17 +162,23 @@ export function buildRichReminderPayload(
 export interface EpisodeReminder { key: string; payload: RichReminderPayload }
 /** Only catch up the previous five minutes, never burst an entire day's missed alerts. */
 export function buildEpisodeReminders(shows: Show[], tracking: Tracking, settings: Settings, now: number): EpisodeReminder[] {
-  if (!settings.episodeReminderEnabled) return []
-  const offset = settings.episodeReminderOffset * 60_000 * (settings.episodeReminderMode === 'after' ? 1 : -1)
+  if (isQuietTime(settings, now)) return []
   const out: EpisodeReminder[] = []
   for (const show of shows) {
     if (tracking.status[show.id] !== 'watching') continue
+    const pref = settings.showReminders?.[show.id]
+    if (pref?.mode === 'off') continue
+    const custom = pref && pref.mode !== 'inherit'
+    if (!custom && !settings.episodeReminderEnabled) continue
+    const mode = custom ? pref.mode : settings.episodeReminderMode
+    const minutes = custom ? pref.offset : settings.episodeReminderOffset
+    const offset = minutes * 60_000 * (mode === 'after' ? 1 : -1)
     for (const occurrence of occurrencesBetween(show, now - offset - 5 * 60_000, now - offset)) {
       if ((tracking.watched[show.id] ?? 0) >= occurrence.epEnd) continue
-      const key = `${show.id}:${occurrence.ep}:${occurrence.t}:${settings.episodeReminderMode}:${settings.episodeReminderOffset}`
+      const key = `${show.id}:${occurrence.ep}:${occurrence.t}:${mode}:${minutes}`
       out.push({ key, payload: {
         kind: 'watching', theme: settings.theme, lang: settings.lang, autoHideSeconds: settings.reminderDismissSeconds,
-        trigger: 'episode', heading: t(settings.episodeReminderMode === 'before' ? '即将放送' : '放送后提醒'), emptyText: '',
+        trigger: 'episode', heading: t(mode === 'before' ? '即将放送' : '放送后提醒'), emptyText: '',
         items: [{ id: show.id, title: displayName(show), cover: show.image, airTime: displayAirTime(occurrence.t, settings), episode: episodeText(occurrence), episodeNumber: occurrence.epEnd, airAt: occurrence.t }],
       } })
     }

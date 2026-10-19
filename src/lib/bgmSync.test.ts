@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { mockStorage } from './testStorage'
 import { remoteFetch } from './native'
-import { clearQueue, drainQueue, enqueuePush, mergeRemote, pullCollections, queuedIds } from './bgm'
+import { clearQueue, drainQueue, enqueuePush, mergeRemote, pullCollections, queuedIds, syncDetails, discardSubjectPush } from './bgm'
 import type { BgmAccount, Tracking } from '../types'
 import type { BgmEpisodeCollection } from './bgmEpisodes'
 vi.mock('./native', () => ({ remoteFetch: vi.fn() }))
@@ -449,5 +449,40 @@ describe('progress receipts and partial reads', () => {
   it('rejects an invalid collection response instead of showing an empty successful sync', async () => {
     fetch.mockResolvedValue(response({ error: 'upstream unavailable' }))
     await expect(pullCollections(account, true)).rejects.toThrow('收藏数据无效')
+  })
+})
+
+describe('per-subject synchronization controls', () => {
+  it('retries only the requested subject and leaves another queued subject untouched', async () => {
+    enqueuePush(1, { type: 3, ep: 3 }); enqueuePush(2, { type: 3, ep: 4 })
+    const result = await finish(drainQueue(account, true, 1))
+    expect(result.uploaded).toBe(1); expect(queuedIds()).toEqual(new Set([2]))
+    expect(fetch.mock.calls.some(([input]) => String(input).includes('/collections/2'))).toBe(false)
+  })
+  it('discarding one explicitly resolved subject preserves all other edits', () => {
+    enqueuePush(1, { type: 3, ep: 3 }); enqueuePush(2, { type: 3, ep: 4 })
+    discardSubjectPush(account.username, 1)
+    expect(queuedIds()).toEqual(new Set([2]))
+  })
+  it('resolving progress keeps a pending rating/comment for the same show', async () => {
+    enqueuePush(1, { type: 3, ep: 3, rate: 8, comment: 'test-only comment' })
+    discardSubjectPush(account.username, 1)
+    expect(queuedIds()).toEqual(new Set([1]))
+    await finish(drainQueue(account, true, 1))
+    const writes = fetch.mock.calls.filter(([input, init]) => String(input).endsWith('/collections/1') && init?.method === 'POST')
+    expect(writes).toHaveLength(1)
+    expect(JSON.parse(String(writes[0][1]?.body))).toMatchObject({ rate: 8, comment: 'test-only comment' })
+    expect(episodes.every(ep => ep.type !== 2)).toBe(true)
+  })
+  it('shows the actual cloud observation even when a receipt protects local progress', async () => {
+    enqueuePush(1, { type: 3, ep: 3 }); await finish(drainQueue(account))
+    episodes = makeEpisodes(12)
+    const remote = await pullCollections(account, true)
+    const local: Tracking = { status: { 1: 'watching' }, watched: { 1: 3 }, rates: {}, memos: {} }
+    expect(syncDetails(local, remote)[0]).toMatchObject({ local: 3, cloud: 0, state: 'conflict' })
+  })
+  it('labels untouched unread subjects unknown, never falsely verified', () => {
+    const local: Tracking = { status: { 1: 'watching' }, watched: { 1: 3 }, rates: {}, memos: {} }
+    expect(syncDetails(local, null)[0].state).toBe('unknown')
   })
 })

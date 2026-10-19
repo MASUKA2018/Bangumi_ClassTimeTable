@@ -78,7 +78,12 @@ export interface Tracking {
   memos: Record<number, CollectMemo> // subject id → 标签/吐槽/可见性
 }
 
+export interface ShowReminderPreference { mode: 'inherit' | 'off' | 'before' | 'after'; offset: number }
 export interface Settings {
+  showReminders: Record<number, ShowReminderPreference>
+  quietHoursEnabled: boolean
+  quietHoursStart: string
+  quietHoursEnd: string
   theme: ThemeId
   themeMode: 'manual' | 'system'
   density: 'compact' | 'standard' | 'large'

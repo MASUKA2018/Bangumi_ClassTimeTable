@@ -76,6 +76,8 @@ export interface RemotePull {
   issues?: Record<number, string>
   updatedAt?: Record<number, number>
   checkedProgress?: number[]
+  observed?: Record<number, number>
+  pulledAt?: number
 }
 
 interface ProgressProof { value: number; rewind: boolean; confirmedAt: number }
@@ -196,6 +198,8 @@ export async function pullCollections(acc: BgmAccount, force = false, attempt = 
     if (attempt >= 2) throw new Error('同步期间有新进度上传，请稍后重试')
     return pullCollections(acc, true, attempt + 1)
   }
+  out.observed = { ...out.watched }
+  out.pulledAt = Date.now()
   checkConfirmed(acc, out)
   // Partial failures must be retried, not reused as a successful cached snapshot.
   if (!Object.keys(out.issues ?? {}).length) writeCache(key, out)
@@ -222,6 +226,7 @@ export interface PushPatch {
   tries?: number
   retryAt?: number
   revision?: number
+  lastError?: string
 }
 type Queue = Record<string, PushPatch>
 let volatileQueue: Queue | null = null
@@ -246,7 +251,7 @@ function saveQueue(q: Queue) {
 
 export function enqueuePush(id: number, patch: Omit<PushPatch, 'tries' | 'retryAt' | 'revision'>) {
   const q = loadQueue()
-  q[id] = { ...q[id], ...patch, tries: 0, retryAt: undefined, revision: (q[id]?.revision ?? 0) + 1 }
+  q[id] = { ...q[id], ...patch, tries: 0, retryAt: undefined, lastError: undefined, revision: (q[id]?.revision ?? 0) + 1 }
   saveQueue(q)
 }
 
@@ -300,16 +305,17 @@ async function writeEpisodeProgress(acc: BgmAccount, id: number, patch: PushPatc
 }
 
 /** Metadata uses POST; anime progress uses the episode PATCH API and is read back. */
-export function drainQueue(acc: BgmAccount, force = false): Promise<DrainResult> {
+export function drainQueue(acc: BgmAccount, force = false, onlyId?: number): Promise<DrainResult> {
   if (drainTask) {
-    if (drainTask.username === acc.username && drainTask.generation === queueGeneration) return drainTask.promise
-    return drainTask.promise.catch(() => undefined).then(() => drainQueue(acc, force))
+    if (onlyId === undefined && drainTask.username === acc.username && drainTask.generation === queueGeneration) return drainTask.promise
+    return drainTask.promise.catch(() => undefined).then(() => drainQueue(acc, force, onlyId))
   }
   const generation = queueGeneration
   const promise = (async (): Promise<DrainResult> => {
     const result: DrainResult = { uploaded: 0, pending: 0, confirmedProgress: {} }
     const ids = Object.keys(loadQueue())
     for (const id of ids) {
+      if (onlyId !== undefined && Number(id) !== onlyId) continue
       if (generation !== queueGeneration) break
       const patch = loadQueue()[id]
       if (!patch || (!force && (patch.retryAt ?? 0) > Date.now())) continue
@@ -346,6 +352,8 @@ export function drainQueue(acc: BgmAccount, force = false): Promise<DrainResult>
           q[id].retryAt = Date.now() + Math.min(30 * 60_000, 15_000 * 2 ** Math.min(q[id].tries! - 1, 7))
           saveQueue(q)
           result.error = e instanceof Error ? e.message : '网络或服务器错误'
+          q[id].lastError = result.error
+          saveQueue(q)
         }
       }
       await new Promise((r) => setTimeout(r, 250)) // 写接口逐条慢速,不冲 API
@@ -360,6 +368,34 @@ export function drainQueue(acc: BgmAccount, force = false): Promise<DrainResult>
   })().finally(() => { if (drainTask?.promise === promise) drainTask = null })
   drainTask = { username: acc.username, generation, promise }
   return promise
+}
+
+export async function readSubjectProgress(acc: BgmAccount, id: number): Promise<number> {
+  return continuousEpisodeProgress((await fetchEpisodeCollections(acc, id)).items)
+}
+/** Explicitly resolving ONE subject must leave all other queued edits intact. */
+export function discardSubjectPush(username: string, id: number) {
+  queueGeneration++
+  const q = loadQueue(), old = q[id]
+  // Progress resolution must not silently lose a pending rating/private comment.
+  if (old && [old.rate, old.tags, old.comment, old.private].some(x => x !== undefined)) {
+    q[id] = { ...old, ep: undefined, rewind: undefined, tries: 0, retryAt: undefined, lastError: undefined, revision: (old.revision ?? 0) + 1 }
+  } else delete q[id]
+  saveQueue(q)
+  const proofs = loadConfirmed(username); delete proofs[id]; saveConfirmed(username, proofs)
+  clearPullCache(username)
+}
+export interface SyncDetail { id: number; local: number; cloud?: number; state: 'pending' | 'conflict' | 'verified' | 'unknown'; error?: string; retryAt?: number }
+export function syncDetails(local: Tracking, remote: RemotePull | null): SyncDetail[] {
+  const q = loadQueue()
+  return [...new Set([...Object.keys(local.status), ...Object.keys(local.watched), ...Object.keys(remote?.status ?? {}), ...Object.keys(q)])].map(Number).map(id => {
+    const cloud = remote?.observed?.[id] ?? remote?.watched[id]
+    const value = local.watched[id] ?? 0
+    const error = q[id]?.lastError ?? remote?.issues?.[id]
+    return { id, local: value, cloud, error, retryAt: q[id]?.retryAt,
+      state: q[id] ? 'pending' as const : error || (cloud !== undefined && cloud !== value) ? 'conflict' as const
+        : remote?.checkedProgress?.includes(id) && cloud === value ? 'verified' as const : 'unknown' as const }
+  })
 }
 
 /**

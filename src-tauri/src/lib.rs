@@ -1,13 +1,15 @@
 #[cfg(desktop)]
 mod backups;
 #[cfg(desktop)]
+mod tray_watch;
+#[cfg(desktop)]
 mod updates;
 
 #[cfg(desktop)]
 use tauri::{
     menu::{MenuBuilder, MenuItemBuilder},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
-    Manager,
+    Emitter, Manager,
 };
 
 #[cfg(desktop)]
@@ -99,7 +101,8 @@ pub fn run() {
                 backups::read_local_backup,
                 backups::save_local_backup,
                 updates::check_app_update,
-                updates::install_app_update
+                updates::install_app_update,
+                tray_watch::set_tray_watch_list
             ])
             .plugin(tauri_plugin_updater::Builder::new().build())
             .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
@@ -129,6 +132,15 @@ pub fn run() {
                     .on_menu_event(|app, event| match event.id().as_ref() {
                         "show" => show_main_window(app),
                         "quit" => app.exit(0),
+                        value if value.starts_with("watch-") => {
+                            let parts: Vec<_> = value.split(':').collect();
+                            if parts.len() == 3 {
+                                if let (Ok(id), Ok(expected)) = (parts[1].parse::<u32>(), parts[2].parse::<u32>()) {
+                                    let _ = app.emit_to("main", "btt-tray-watch", serde_json::json!({ "id": id, "expected": expected, "action": parts[0] }));
+                                    if parts[0] == "watch-detail" { show_main_window(app); }
+                                }
+                            }
+                        }
                         _ => {}
                     })
                     .on_tray_icon_event(|tray, event| {
@@ -176,6 +188,7 @@ pub fn run() {
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_dialog::init())
         .run(tauri::generate_context!())
         .expect("启动番组课表失败");
 }

@@ -49,6 +49,7 @@ const defaultTheme = (): Settings['theme'] =>
   typeof matchMedia !== 'undefined' && matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'bgm-dark'
 
 export const DEFAULT_SETTINGS: Settings = {
+  showReminders: {}, quietHoursEnabled: false, quietHoursStart: '23:00', quietHoursEnd: '08:00',
   theme: defaultTheme(),
   themeMode: 'manual',
   density: 'standard',
@@ -100,6 +101,17 @@ export function normalizeSettings(raw: unknown): Settings {
   result.panelWidth = Number.isFinite(result.panelWidth) ? Math.max(260, Math.min(900, result.panelWidth)) : 380
   result.panelWidthDay = Number.isFinite(result.panelWidthDay) ? Math.max(260, Math.min(1000, result.panelWidthDay)) : 640
   result.friends = Array.isArray(input.friends) ? [...new Set(input.friends.filter((x): x is string => typeof x === 'string' && x.length < 100))].slice(0, 50) : []
+  result.showReminders = {}
+  if (input.showReminders && typeof input.showReminders === 'object' && !Array.isArray(input.showReminders)) {
+    for (const [id, raw] of Object.entries(input.showReminders).slice(0, 2000)) {
+      const pref = raw as Settings['showReminders'][number]
+      if (/^[1-9]\d{0,9}$/.test(id) && pref && ['inherit','off','before','after'].includes(pref.mode)
+        && Number.isSafeInteger(pref.offset) && pref.offset >= 0 && pref.offset <= 1440) result.showReminders[Number(id)] = { mode: pref.mode, offset: pref.offset }
+    }
+  }
+  for (const key of ['quietHoursStart', 'quietHoursEnd'] as const) {
+    if (!/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(result[key])) result[key] = DEFAULT_SETTINGS[key]
+  }
   for (const key of ['watchingReminderTime', 'otherReminderTime'] as const) {
     if (!/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(result[key])) result[key] = DEFAULT_SETTINGS[key]
   }

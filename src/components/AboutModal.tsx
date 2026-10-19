@@ -12,6 +12,15 @@ interface LogEntry {
 
 const CHANGELOG: LogEntry[] = [
   {
+    d: '2026-10-19',
+    x: {
+      'zh-Hans': '桌面端 beta 0.5.0：更新改用原生确认框并显示下载、签名校验、安装与重启阶段；新增逐部同步明细、单部重试与冲突选择、30 天进度历史及单部恢复、单部提醒和免打扰、可预览的脱敏诊断、托盘今日待看及下一集操作。旧 Mac 版首次升级可能需手动替换应用。',
+      'zh-Hant': '桌面端 beta 0.5.0：更新改用原生確認框並顯示下載、簽章驗證、安裝與重新啟動階段；新增逐部同步明細、單部重試與衝突選擇、30 天進度歷史及單部復原、單部提醒和免打擾、可預覽的去識別診斷、系統匣今日待看及下一集操作。舊 Mac 版首次升級可能需手動替換應用程式。',
+      ja: 'デスクトップ beta 0.5.0：ネイティブ確認ダイアログと更新段階の表示、作品別同期・再試行・競合解決、30日分の進捗履歴と作品別復元、個別通知と休止時間、プレビュー付き匿名化診断、トレイの今日の視聴と次話操作を追加。旧Mac版からは手動置換が必要な場合があります。',
+      en: 'Desktop beta 0.5.0: native confirmation and update stages; per-show sync, retry and conflict resolution; 30-day progress history and single-show restore; per-show reminders and quiet hours; previewable redacted diagnostics; and today’s tray watch list with next-episode actions. Older Mac versions may require one manual replacement.',
+    },
+  },
+  {
     d: '2026-10-17',
     x: {
       'zh-Hans': '桌面端 beta 0.4.2：修复上传后立刻同步时观看集数回退的问题。在看／搁置始终读取章节状态，不再相信滞后的收藏汇总；保存上传核对记录并跳过个人 HTTP 缓存。部分失败保留本机进度并明确提示，成功时显示上传与核对数量。',

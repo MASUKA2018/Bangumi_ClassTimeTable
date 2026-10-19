@@ -15,7 +15,14 @@ import {
   saveAccount,
   verifyToken,
   type DrainResult,
+  type RemotePull, readSubjectProgress, discardSubjectPush,
 } from './lib/bgm'
+import { confirmAction } from './lib/confirm'
+import { recordProgressChanges, type ProgressSource } from './lib/progressHistory'
+import { recordDiagnostic } from './lib/diagnostics'
+import ReliabilityPanel from './components/ReliabilityPanel'
+import ShowReminderSettings from './components/ShowReminderSettings'
+import { trayWatchRows, trayAdvance } from './lib/trayWatch'
 import { installBgmAutoSync } from './lib/bgmAutoSync'
 import { beginOauthLogin, completeOauthLogin, fetchOauthConf, refreshIfNeeded, type OauthConf } from './lib/oauth'
 import { withViewTransition } from './lib/anim'
@@ -40,6 +47,7 @@ import {
   buildEpisodeReminders, episodeReminderSent, markEpisodeReminders,
   snoozedReminders, snoozeReminder, removeSnooze,
   isDailyReminderDue,
+  isQuietTime,
   markReminderDelivered,
   notificationPermissionGranted,
   readLastReminderDay,
@@ -153,6 +161,7 @@ export default function App() {
   const [dataMessage, setDataMessage] = useState('')
   const [backupError, setBackupError] = useState('')
   const [storageError, setStorageError] = useState('')
+  const [historyError, setHistoryError] = useState('')
   const [showPending, setShowPending] = useState(false)
   const [undoProgress, setUndoProgress] = useState<{ id: number; before: number; after: number } | null>(null)
   const syncPausedRef = useRef(localStorage.getItem('btt:bgm:sync-paused:v1') === 'true')
@@ -190,6 +199,7 @@ export default function App() {
   const reminderSending = useRef(new Set<ReminderKind>())
   const [account, setAccount] = useState<BgmAccount | null>(() => loadAccount())
   const [syncState, setSyncState] = useState<{ msg: string; busy: boolean; error?: boolean }>({ msg: '', busy: false })
+  const [remoteSnapshot, setRemoteSnapshot] = useState<RemotePull | null>(null)
   const [oauthConf, setOauthConf] = useState<OauthConf | null>(null)
   const oauthRef = useRef<OauthConf | null>(null)
 
@@ -242,6 +252,10 @@ export default function App() {
   useEffect(() => {
     trackingRef.current = tracking
   }, [tracking])
+  const commitTracking = useCallback((next: Tracking, source: ProgressSource) => {
+    setHistoryError(recordProgressChanges(trackingRef.current, next, source) ? '' : t('进度历史保存失败，请导出备份。'))
+    trackingRef.current = next; setTracking(next)
+  }, [])
 
   /** OAuth 令牌到期前静默续期;续不回来 → 标记失效。个人令牌原样通过。 */
   const ensureFresh = useCallback(async (): Promise<BgmAccount | null> => {
@@ -249,6 +263,8 @@ export default function App() {
     const acc = accountRef.current
     if (!acc || acc.invalid) return null
     const fresh = await refreshIfNeeded(oauthRef.current, acc)
+    // A logout/account switch during refresh must never resurrect the old account.
+    if (accountRef.current?.username !== acc.username || accountRef.current?.token !== acc.token || syncPausedRef.current) return null
     if (!fresh) {
       setAccount({ ...acc, invalid: true })
       setSyncState({ msg: t('登录已过期,请重新登录'), busy: false })
@@ -275,9 +291,9 @@ export default function App() {
     }
     if (changed) {
       const next = { ...trackingRef.current, watched }
-      trackingRef.current = next; setTracking(next)
+      commitTracking(next, 'verified')
     }
-  }, [])
+  }, [commitTracking])
   const drainNow = useCallback(async (): Promise<void> => {
     // A leftover debounce timer must not replace a pull/conflict error with an
     // empty-queue "uploaded" success after the manual sync already finished.
@@ -290,6 +306,7 @@ export default function App() {
       activeAccount = acc ?? activeAccount
       if (!acc || syncPausedRef.current) return
       const result = await drainQueue(acc)
+      recordDiagnostic('sync', 'upload', result.pending || result.error ? 'error' : 'ok')
       if (!isCurrentAccount(acc)) return
       applyConfirmedProgress(result)
       setSyncState({ busy: syncingRef.current, error: result.pending > 0 || !!result.error,
@@ -329,9 +346,9 @@ export default function App() {
       const repair = acc.episodeSyncVersion !== 1
       const remote = await pullCollections(acc, force || repair)
       if (!isCurrentAccount(acc)) return
+      setRemoteSnapshot(remote)
       const { tracking: merged, pushes } = mergeRemote(trackingRef.current, remote, !acc.mergedOnce, queuedIds(), repair)
-      trackingRef.current = merged
-      setTracking(merged)
+      commitTracking(merged, 'cloud')
       const pushIds = Object.keys(pushes)
       for (const id of pushIds) enqueuePush(Number(id), pushes[Number(id)])
       const after = pushIds.length ? await drainQueue(acc, retryUploads) : before
@@ -339,6 +356,7 @@ export default function App() {
       applyConfirmedProgress(after)
       const pending = queuedIds().size
       const issues = Object.values(remote.issues ?? {})
+      recordDiagnostic('sync', 'pull', pending || issues.length ? 'error' : 'ok')
       const nextAccount = { ...acc, mergedOnce: true, ...(pending === 0 && issues.length === 0 ? { episodeSyncVersion: 1 } : {}) }
       accountRef.current = nextAccount; setAccount(nextAccount)
       const at = new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
@@ -356,6 +374,7 @@ export default function App() {
         drainTimer.current = window.setTimeout(drainNow, Math.max(1500, after.nextRetryAt - Date.now()))
       }
     } catch (e) {
+      recordDiagnostic('sync', 'sync', 'error', undefined, e)
       if (activeAccount && !isCurrentAccount(activeAccount)) return
       if (e instanceof BgmAuthError) {
         setAccount((a) => (a ? { ...a, invalid: true } : a))
@@ -367,7 +386,7 @@ export default function App() {
       syncingRef.current = false
       setSyncState(s => ({ ...s, busy: drainingRef.current }))
     }
-  }, [ensureFresh, isCurrentAccount, applyConfirmedProgress, drainNow])
+  }, [ensureFresh, isCurrentAccount, applyConfirmedProgress, drainNow, commitTracking])
 
   useEffect(() => {
     if (!account?.token || account.invalid) return
@@ -396,6 +415,7 @@ export default function App() {
     if (drainTimer.current) window.clearTimeout(drainTimer.current)
     accountRef.current = null
     setAccount(null) // 本机追番记录保留
+    setRemoteSnapshot(null)
     setSyncState({ msg: '', busy: false })
   }, [])
 
@@ -744,14 +764,14 @@ export default function App() {
   )
 
   const setWatched = useCallback(
-    (id: number, n: number, allowUndo = true) => {
+    (id: number, n: number, allowUndo = true, source: ProgressSource = 'local') => {
       n = Math.max(0, Math.min(100000, Math.floor(n)))
       if (!Number.isFinite(n)) return
       const before = trackingRef.current.watched[id] ?? 0
       if (before === n) return
       const st = trackingRef.current.status[id] ?? 'watching'
       const next = { ...trackingRef.current, status: { ...trackingRef.current.status, [id]: st }, watched: { ...trackingRef.current.watched, [id]: n } }
-      trackingRef.current = next; setTracking(next)
+      commitTracking(next, source)
       setUndoProgress(allowUndo ? { id, before, after: n } : null)
       const acc = accountRef.current
       if (acc && !acc.invalid && !syncPausedRef.current) {
@@ -759,8 +779,78 @@ export default function App() {
         scheduleDrain()
       }
     },
-    [scheduleDrain],
+    [scheduleDrain, commitTracking],
   )
+
+  const retrySubject = useCallback(async (id: number) => {
+    if (syncingRef.current || drainingRef.current) throw new Error(t('同步正在进行，请稍后重试。'))
+    const acc = await ensureFresh()
+    if (!acc) throw new Error(t('请先连接账号并恢复同步。'))
+    if (!isCurrentAccount(acc) || syncingRef.current || drainingRef.current) throw new Error(t('记录已变化，请重新核对。'))
+    drainingRef.current = true; setSyncState(s => ({ ...s, busy: true }))
+    try {
+      const result = await drainQueue(acc, true, id)
+      if (!isCurrentAccount(acc)) return
+      applyConfirmedProgress(result)
+      const remote = await pullCollections(acc, true)
+      if (!isCurrentAccount(acc)) return
+      setRemoteSnapshot(remote)
+      recordDiagnostic('sync', 'retry_subject', result.error ? 'error' : 'ok', id)
+      if (result.error) throw new Error(result.error)
+    } finally { drainingRef.current = false; setSyncState(s => ({ ...s, busy: syncingRef.current })) }
+  }, [ensureFresh, isCurrentAccount, applyConfirmedProgress])
+
+  const resolveSubject = useCallback(async (id: number, source: 'local' | 'cloud') => {
+    if (syncingRef.current || drainingRef.current) throw new Error(t('同步正在进行，请稍后重试。'))
+    const acc = await ensureFresh()
+    if (!acc) throw new Error(t('请先连接账号并恢复同步。'))
+    const before = trackingRef.current.watched[id] ?? 0
+    const cloud = await readSubjectProgress(acc, id)
+    if (!isCurrentAccount(acc) || syncingRef.current || drainingRef.current) throw new Error(t('记录已变化，请重新核对。'))
+    if (!await confirmAction(t('本机第 {local} 集，云端第 {cloud} 集。将采用{source}进度，仅影响这部番剧。继续？', {
+      local: before, cloud, source: t(source === 'local' ? '本机' : '云端'),
+    }))) return
+    if (!isCurrentAccount(acc) || syncingRef.current || drainingRef.current || (trackingRef.current.watched[id] ?? 0) !== before) throw new Error(t('记录已变化，请重新核对。'))
+    await createBackup(loadPersisted(), 'restore')
+    if (!isCurrentAccount(acc) || syncingRef.current || drainingRef.current || (trackingRef.current.watched[id] ?? 0) !== before) throw new Error(t('记录已变化，请重新核对。'))
+    discardSubjectPush(acc.username, id)
+    if (source === 'local') {
+      enqueuePush(id, { type: STATUS_TO_TYPE[trackingRef.current.status[id] ?? 'watching'], ep: before, rewind: true })
+      scheduleDrain()
+    } else {
+      commitTracking({ ...trackingRef.current, watched: { ...trackingRef.current.watched, [id]: cloud } }, 'cloud')
+      setRemoteSnapshot(old => {
+        if (!old) return old
+        const issues = { ...old.issues }; delete issues[id]
+        return { ...old, issues, watched: { ...old.watched, [id]: cloud }, observed: { ...old.observed, [id]: cloud }, checkedProgress: [...new Set([...(old.checkedProgress ?? []), id])] }
+      })
+    }
+    recordDiagnostic('sync', 'resolve_subject', 'ok', id)
+  }, [ensureFresh, isCurrentAccount, scheduleDrain, commitTracking])
+
+  const restoreProgress = useCallback(async (id: number, value: number) => {
+    if (syncingRef.current || drainingRef.current) throw new Error(t('同步正在进行，请稍后恢复。'))
+    const originalAccount = accountRef.current, originallyPaused = syncPausedRef.current
+    const before = trackingRef.current.watched[id] ?? 0
+    if (!await confirmAction(t('仅将这部番剧从第 {before} 集恢复为第 {after} 集。连接账号且未暂停时会上传。继续？', { before, after: value }))) return
+    await createBackup(loadPersisted(), 'restore')
+    if (accountRef.current !== originalAccount || syncPausedRef.current !== originallyPaused || syncingRef.current || drainingRef.current || (trackingRef.current.watched[id] ?? 0) !== before) throw new Error(t('记录已变化，请重新核对。'))
+    setWatched(id, value, true, 'restore')
+  }, [setWatched])
+
+  const traySnapshot = useRef('')
+  useEffect(() => {
+    if (!isNativeApp() || !liveReminderShows) return
+    const rows = trayWatchRows(liveReminderShows, tracking, settings, now)
+    const labels = { today: t('今日待看（最多 10 部，已看／已播）'), show: t('显示主窗口'), quit: t('退出'), empty: t('今日暂无在看更新'), next: t('看完下一集'), detail: t('查看详情') }
+    const snapshot = JSON.stringify({ rows, labels })
+    if (snapshot === traySnapshot.current) return
+    const timer = window.setTimeout(() => {
+      import('@tauri-apps/api/core').then(({ invoke }) => invoke('set_tray_watch_list', { rows, labels }))
+        .then(() => { traySnapshot.current = snapshot }).catch(e => recordDiagnostic('tray', 'menu', 'error', undefined, e))
+    }, 250)
+    return () => window.clearTimeout(timer)
+  }, [liveReminderShows, tracking, settings, now])
 
   const setMemo = useCallback(
     (id: number, memo: CollectMemo) => {
@@ -899,7 +989,7 @@ export default function App() {
   const relativeSending = useRef(false)
   const relativeRetryAt = useRef(0)
   useEffect(() => {
-    if (!liveReminderShows || relativeSending.current || now < relativeRetryAt.current) return
+    if (!liveReminderShows || relativeSending.current || now < relativeRetryAt.current || isQuietTime(settings, now)) return
     const due = buildEpisodeReminders(liveReminderShows, tracking, { ...settings, theme: actualTheme }, now).filter(x => !episodeReminderSent(x.key))
     const snoozes = snoozedReminders().filter(x => x.due <= now)
     if (!due.length && !snoozes.length) return
@@ -912,6 +1002,7 @@ export default function App() {
         }
         for (const snooze of snoozes) {
           const items = snooze.payload.items.filter(item => {
+            if (settings.showReminders?.[item.id]?.mode === 'off') return false
             const status = tracking.status[item.id]
             return snooze.payload.kind === 'watching' ? status === 'watching' && (!item.episodeNumber || (tracking.watched[item.id] ?? 0) < item.episodeNumber) : !['watching','paused','done','dropped'].includes(status) && (settings.otherReminderScope !== 'wish' || status === 'wish')
           })
@@ -939,6 +1030,20 @@ export default function App() {
     },
     [],
   )
+  useEffect(() => {
+    if (!isNativeApp()) return
+    let alive = true, dispose: (() => void) | undefined
+    import('@tauri-apps/api/event').then(({ listen }) => listen<{ id: number; expected: number; action: string }>('btt-tray-watch', ({ payload }) => {
+      if (!alive || !Number.isSafeInteger(payload?.id)) return
+      if (payload.action === 'watch-detail' && liveReminderShows?.some(x => x.id === payload.id)) {
+        setSeasonSel('live'); setShowSettings(false); setShowPending(false); openDetail(payload.id)
+      } else if (payload.action === 'watch-next') {
+        const n = trayAdvance(payload.id, payload.expected, liveReminderShows ?? [], trackingRef.current, Date.now())
+        if (n !== null) setWatched(payload.id, n)
+      }
+    })).then(fn => { if (alive) dispose = fn; else fn() }).catch(e => recordDiagnostic('tray', 'listener', 'error', undefined, e))
+    return () => { alive = false; dispose?.() }
+  }, [liveReminderShows, openDetail, setWatched])
   const restoreData = useCallback(async (data: Persisted) => {
     if (syncingRef.current || drainingRef.current) throw new Error(t('同步正在进行，请稍后恢复。'))
     const wasPaused = syncPausedRef.current
@@ -954,18 +1059,21 @@ export default function App() {
       if (!wasPaused) localStorage.removeItem('btt:bgm:sync-paused:v1')
       throw error
     }
+    recordProgressChanges(trackingRef.current, data.tracking, 'restore')
     setSettings(data.settings); trackingRef.current = data.tracking; setTracking(data.tracking); setOverrides(data.overrides)
     setContSel(data.filters.cont); setRegSel(data.filters.reg); setRepMin(data.filters.repMin); setSrcSel(data.filters.src); setTagSel(data.filters.tag)
     setUndoProgress(null)
   }, [])
-  const resumeSync = useCallback(() => {
+  const resumeSync = useCallback(async () => {
+    try {
     if (syncPausedRef.current) {
-      if (!window.confirm(t('恢复同步会按本机优先合并，并可能写回 Bangumi 收藏。继续？'))) return
+      if (!await confirmAction(t('恢复同步会按本机优先合并，并可能写回 Bangumi 收藏。继续？'))) return
       syncPausedRef.current = false; setSyncPaused(false); localStorage.removeItem('btt:bgm:sync-paused:v1')
       const acc = accountRef.current
       if (acc) { accountRef.current = { ...acc, mergedOnce: false }; setAccount(accountRef.current) }
     }
     void doSync(true, true)
+    } catch (e) { setSyncState({ msg: String(e), busy: false, error: true }) }
   }, [doSync])
   useEffect(() => {
     if (!isNativeApp()) return
@@ -1479,7 +1587,11 @@ export default function App() {
           onLogout={bgmLogout}
           onSyncNow={resumeSync}
           syncPaused={syncPaused}
-          features={<DesktopFeatures settings={settings} onChange={patchSettings} updates={updates} onRefreshData={refreshScheduleData} dataBusy={dataBusy} dataMessage={dataMessage} dataSource={dataSource} onRestore={restoreData} backupError={storageError || backupError} syncPaused={syncPaused} />}
+          features={<>
+            <ReliabilityPanel shows={liveReminderShows ?? []} tracking={tracking} remote={remoteSnapshot} busy={syncState.busy} connected={!!account && !account.invalid && !syncPaused} onRetry={retrySubject} onResolve={resolveSubject} onRestore={restoreProgress} />
+            <ShowReminderSettings shows={liveReminderShows ?? []} settings={settings} onChange={patchSettings} />
+            <DesktopFeatures settings={settings} onChange={patchSettings} updates={updates} onRefreshData={refreshScheduleData} dataBusy={dataBusy} dataMessage={dataMessage} dataSource={dataSource} onRestore={restoreData} backupError={storageError || historyError || backupError} syncPaused={syncPaused} />
+          </>}
           onChange={patchSettings}
           onReminderEnabled={setDailyReminderEnabled}
           onTestReminder={testDailyReminder}

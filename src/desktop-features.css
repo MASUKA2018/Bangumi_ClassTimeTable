@@ -49,4 +49,11 @@ body { font-size: calc(12px * var(--font-scale) * var(--density-scale)); }
 .reminder-copy > small { color: var(--text-soft); font-size: 10px; }
 .reminder-nav { margin-top: 8px; }
 button:disabled { cursor: default; opacity: .5; }
+.reliability-panel details { border: 1px solid var(--border); border-radius: 8px; padding: 10px; margin: 10px 0; }
+.reliability-panel summary { cursor: pointer; color: var(--link); }
+.reliability-search { box-sizing: border-box; display: block; max-width: 100%; width: 100%; padding: 7px 9px; margin: 8px 0; background: var(--chip-bg); color: var(--text); border: 1px solid var(--border); border-radius: 6px; }
+.reliability-list { max-height: 320px; overflow: auto; }
+.reliability-row { display: grid; gap: 6px; padding: 12px 0; border-bottom: 1px solid var(--border-soft); overflow-wrap: anywhere; }
+.diagnostic-preview { max-height: 240px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; background: var(--chip-bg); padding: 8px; border-radius: 7px; }
+.feature-field input[type='time'], .feature-field input[type='number'] { max-width: 150px; background: var(--chip-bg); color: var(--text); border: 1px solid var(--border); padding: 5px; border-radius: 6px; }
 @media (max-width: 520px) { .pending-row { gap: 9px; } .pending-row .cover { width: 44px; } .feature-field > span:first-child { min-width: 115px; } }

@@ -1,6 +1,6 @@
 [package]
 name = "bangumi-timetable-app"
-version = "0.4.2"
+version = "0.5.0"
 description = "像课表一样追番的 Windows、macOS 与 Android 客户端"
 authors = ["Bangumi ClassTimetable contributors"]
 edition = "2021"
@@ -19,6 +19,7 @@ tauri = { version = "2", features = ["tray-icon"] }
 tauri-plugin-http = { version = "2", features = ["unsafe-headers"] }
 tauri-plugin-notification = "2"
 tauri-plugin-opener = "2"
+tauri-plugin-dialog = "2"
 
 [target.'cfg(any(target_os = "macos", windows, target_os = "linux"))'.dependencies]
 tauri-plugin-single-instance = "2"

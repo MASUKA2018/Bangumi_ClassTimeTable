@@ -5,6 +5,7 @@ import { loadPersisted, type Persisted } from '../lib/store'
 import { isDesktopNativeApp } from '../lib/native'
 import { RELEASES_URL, type AppUpdates } from '../lib/updates'
 import { t } from '../lib/i18n'
+import { confirmAction } from '../lib/confirm'
 declare const __APP_VERSION__: string
 
 interface Props {
@@ -25,9 +26,8 @@ export default function DesktopFeatures({ settings, onChange, updates, onRefresh
   }
   const restore = async (mode: 'merge' | 'replace') => {
     if (!incoming || restoring) return
-    if (!window.confirm(t('恢复前会保存安全快照并暂停 Bangumi 同步，不会直接改动云端收藏。继续？'))) return
     setRestoring(true)
-    try { await onRestore(mode === 'merge' ? mergeBackup(loadPersisted(), incoming) : incoming); setIncoming(null); setBackupMessage(t('已恢复本机数据；Bangumi 同步已暂停。')); await refreshFiles() }
+    try { if (!await confirmAction(t('恢复前会保存安全快照并暂停 Bangumi 同步，不会直接改动云端收藏。继续？'))) return; await onRestore(mode === 'merge' ? mergeBackup(loadPersisted(), incoming) : incoming); setIncoming(null); setBackupMessage(t('已恢复本机数据；Bangumi 同步已暂停。')); await refreshFiles() }
     catch (e) { setBackupMessage(String(e)) }
     finally { setRestoring(false) }
   }
@@ -60,6 +60,8 @@ export default function DesktopFeatures({ settings, onChange, updates, onRefresh
       {updates.status === 'current' && <p role="status">{t('已是最新版本。')}</p>}
       {updates.update && <div className="update-result"><b>{t('发现新版本')} {updates.update.version}</b><p className="release-notes">{updates.update.body}</p><button className="iconbtn accent" disabled={['checking','installing'].includes(updates.status)} onClick={updates.install}>{t(updates.status === 'installing' ? '正在备份并安装…' : '确认安装并重启')}{updates.progress !== null && updates.status === 'installing' ? ` ${updates.progress}%` : ''}</button></div>}
       {updates.status === 'error' && <p className="err" role="alert">{t('检查或安装更新失败：{error}', { error: updates.error })}</p>}
+      <p role="status" className="feature-hint">{t(({ backup: '正在保存更新前备份', checking: '正在重新核对版本', downloading: '正在下载更新', verifying: '正在校验签名', installing: '正在安装更新', restarting: '正在重启应用', cancelled: '已取消更新' } as Record<string,string>)[updates.stage] ?? '')}</p>
+      {updates.status === 'error' && <p><button className="iconbtn" onClick={updates.install}>{t('重试安装')}</button> <a href={RELEASES_URL} target="_blank" rel="noreferrer">{t('手动下载安装包')}</a></p>}
       <div className="feature-field"><span>{t('放送数据')} · {t(dataSource || '正在读取…')}</span><button className="iconbtn" disabled={dataBusy} onClick={() => void onRefreshData()}>{t(dataBusy ? '正在刷新…' : '立即更新放送数据')}</button></div>
       {dataMessage && <p className="feature-hint" role="status">{dataMessage}</p>}
       <p className="feature-hint">{t('放送数据与程序版本独立更新；更新数据不需要重新安装。')}</p>
