@@ -2,9 +2,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { confirmAction } from './confirm'
 import { isNativeApp } from './native'
 import { confirm } from '@tauri-apps/plugin-dialog'
+import { setLang } from './i18n'
 vi.mock('./native', () => ({ isNativeApp: vi.fn() }))
 vi.mock('@tauri-apps/plugin-dialog', () => ({ confirm: vi.fn() }))
-beforeEach(() => { vi.mocked(confirm).mockReset(); vi.stubGlobal('window', { confirm: vi.fn(() => true) }) })
+beforeEach(() => { setLang('zh-Hans'); vi.mocked(confirm).mockReset(); vi.stubGlobal('window', { confirm: vi.fn(() => true) }) })
 afterEach(() => vi.unstubAllGlobals())
 describe('cross-platform confirmations', () => {
   it('uses the ordinary browser confirmation outside Tauri', async () => {
@@ -22,5 +23,11 @@ describe('cross-platform confirmations', () => {
     vi.mocked(isNativeApp).mockReturnValue(true); vi.mocked(confirm).mockRejectedValue(new Error('permission denied'))
     await expect(confirmAction('test')).rejects.toThrow('permission denied')
     expect(window.confirm).not.toHaveBeenCalled()
+  })
+  it('localizes native buttons instead of leaving Chinese labels in English mode', async () => {
+    setLang('en'); vi.mocked(isNativeApp).mockReturnValue(true); vi.mocked(confirm).mockResolvedValue(true)
+    await confirmAction('Confirm?')
+    expect(confirm).toHaveBeenCalledWith('Confirm?', expect.objectContaining({ okLabel: 'Confirm', cancelLabel: 'Cancel' }))
+    setLang('zh-Hans')
   })
 })

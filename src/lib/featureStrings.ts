@@ -1,5 +1,6 @@
 /** Shared feature strings; Chinese text remains the canonical lookup key. */
 export const FEATURE_STRINGS: Record<string, [string, string, string]> = {
+  确认: ['確認', '確認', 'Confirm'],
   '操作已处理，请核对记录。': ['操作已處理，請核對記錄。', '操作を処理しました。記録をご確認ください。', 'Action processed. Please review the records.'],
   '同步明细与进度历史': ['同步明細與進度歷史', '同期の詳細・進捗履歴', 'Sync details & progress history'],
   '逐部同步明细': ['逐部同步明細', '作品別の同期詳細', 'Per-show sync details'],
