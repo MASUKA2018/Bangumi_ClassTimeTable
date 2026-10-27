@@ -54,7 +54,7 @@ export default function ReliabilityPanel({ shows, tracking, remote, busy, connec
     </details>
     <details><summary>{t('故障诊断与隐私预览')}</summary>
       <p className="feature-hint">{t('仅导出版本、平台、阶段、结果、番剧 ID 和 HTTP 状态；不含账号、令牌、私钥、番剧标题或私人评论。文件只下载到本机，不会自动上传。')}</p>
-      <button className="iconbtn" onClick={() => setPreview(!preview)}>{t('预览诊断')}</button> <button className="iconbtn" onClick={() => downloadJson('bangumi-diagnostics.json', report)}>{t('导出诊断文件')}</button>
+      <button className="iconbtn" onClick={() => setPreview(!preview)}>{t('预览诊断')}</button> <button className="iconbtn" onClick={() => void action(() => downloadJson('bangumi-diagnostics.json', report))}>{t('导出诊断文件')}</button>
       {preview && <pre className="diagnostic-preview">{JSON.stringify(report, null, 2)}</pre>}
     </details>
   </section>

@@ -81,8 +81,9 @@ export interface CalItem {
   image?: string
 }
 
-export async function fetchCalendar(): Promise<CalItem[]> {
-  const items = await cachedJson('calendar', `${API}/calendar`, 6 * 3600_000, (raw: any[]) =>
+export async function fetchCalendar(force = false): Promise<CalItem[]> {
+  let items: CalItem[]
+  try { items = await cachedJson('calendar', `${API}/calendar`, force ? -1 : 6 * 3600_000, (raw: any[]) =>
     raw.flatMap((day) =>
       (day.items ?? []).map((it: any) => ({
         id: it.id,
@@ -97,6 +98,11 @@ export async function fetchCalendar(): Promise<CalItem[]> {
       })),
     ),
   )
+  } catch (error) {
+    const old = readCache<CalItem[]>('calendar', Infinity)
+    if (force || !old) throw error
+    items = old
+  }
   // 0.3.1 以前缓存过的 calendar 条目仍是 http；读取缓存后也必须升级。
   return items.map((item) => ({ ...item, image: normalizeBgmImageUrl(item.image) }))
 }
@@ -118,8 +124,8 @@ export function readCachedSubject(id: number): SubjectInfo | null {
   return readCache<SubjectInfo>(`subject:${id}`, SUBJECT_CACHE_TTL)
 }
 
-export function fetchSubject(id: number): Promise<SubjectInfo> {
-  return cachedJson(`subject:${id}`, `${API}/v0/subjects/${id}`, SUBJECT_CACHE_TTL, (raw: any) => ({
+export function fetchSubject(id: number, force = false): Promise<SubjectInfo> {
+  return cachedJson(`subject:${id}`, `${API}/v0/subjects/${id}`, force ? -1 : SUBJECT_CACHE_TTL, (raw: any) => ({
     id: raw.id,
     eps: raw.total_episodes || raw.eps || undefined,
     summary: raw.summary || undefined,

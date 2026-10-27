@@ -1,0 +1,43 @@
+{
+  "$schema": "../gen/schemas/mobile-schema.json",
+  "identifier": "android-main",
+  "description": "Android main window network and scheduled notification access",
+  "platforms": [
+    "android"
+  ],
+  "windows": [
+    "main"
+  ],
+  "permissions": [
+    "core:default",
+    "opener:default",
+    "notification:allow-is-permission-granted",
+    "notification:allow-request-permission",
+    "notification:allow-notify",
+    "notification:allow-get-pending",
+    "notification:allow-cancel",
+    "notification:allow-create-channel",
+    "notification:allow-register-listener",
+    {
+      "identifier": "http:default",
+      "allow": [
+        {
+          "url": "https://api.bgm.tv/**"
+        },
+        {
+          "url": "https://cdn.jsdelivr.net/**"
+        },
+        {
+          "url": "https://unpkg.com/**"
+        },
+        {
+          "url": "https://bgmtimetable.com/**"
+        },
+        {
+          "url": "https://raw.githubusercontent.com/MASUKA2018/Bangumi_ClassTimeTable/main/public/data/**"
+        }
+      ]
+    },
+    "notification:allow-batch"
+  ]
+}

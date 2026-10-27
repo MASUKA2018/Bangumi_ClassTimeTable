@@ -1,6 +1,6 @@
 import type { AirFix, CollectMemo, Tracking, WatchStatus } from '../types'
 import { DEFAULT_FILTERS, loadPersisted, normalizeSettings, type Persisted } from './store'
-import { isDesktopNativeApp } from './native'
+import { isNativeApp } from './native'
 
 const LOCAL_KEY = 'btt:backups:v2'
 const STATUSES: WatchStatus[] = ['wish', 'watching', 'paused', 'done', 'dropped']
@@ -72,7 +72,7 @@ export function backupDiff(local: Persisted, incoming: Persisted) {
     changed: [...ids].filter(id => local.tracking.status[Number(id)] !== incoming.tracking.status[Number(id)] || (local.tracking.watched[Number(id)] ?? 0) !== (incoming.tracking.watched[Number(id)] ?? 0)).length }
 }
 export async function listBackups(): Promise<BackupFile[]> {
-  if (isDesktopNativeApp()) {
+  if (isNativeApp()) {
     const { invoke } = await import('@tauri-apps/api/core')
     return invoke<BackupFile[]>('list_local_backups')
   }
@@ -80,7 +80,7 @@ export async function listBackups(): Promise<BackupFile[]> {
   return saved.map(({ payload: _payload, ...item }) => item)
 }
 export async function readBackup(name: string): Promise<Persisted> {
-  if (isDesktopNativeApp()) {
+  if (isNativeApp()) {
     const { invoke } = await import('@tauri-apps/api/core')
     return parseBackup(await invoke<string>('read_local_backup', { name }))
   }
@@ -94,7 +94,7 @@ export async function createBackup(data: Persisted, reason: 'daily' | 'restore' 
   const at = new Date().toISOString()
   const date = new Date().toLocaleDateString('sv-SE')
   const name = reason === 'daily' ? `daily-${date}.json` : `restore-${Date.now()}.json`
-  if (isDesktopNativeApp()) {
+  if (isNativeApp()) {
     const { invoke } = await import('@tauri-apps/api/core')
     await invoke('save_local_backup', { name, payload })
     return

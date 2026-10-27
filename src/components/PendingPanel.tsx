@@ -1,3 +1,4 @@
+import Cover from './Cover'
 import { useMemo, useState } from 'react'
 import type { Settings, Show, Tracking, WatchStatus } from '../types'
 import { behindProgress } from '../lib/progress'
@@ -41,7 +42,7 @@ export default function PendingPanel({ shows, tracking, settings, now, onOpen, o
       <div className="pending-list">{rows.length ? rows.map(({ show, progress, at, today }) => {
         const p = at ? partsInZone(at, displayTz(settings)) : null
         return <article key={show.id} className="pending-row">
-          {show.image && <img className="cover" src={show.image} alt="" loading="lazy" />}
+          <Cover src={show.image} className="cover" />
           <div className="pending-copy"><button className="title-link" onClick={() => onOpen(show.id)}>{displayName(show)}</button>
             <div className="feature-hint">{progress ? t('第 {from}–{to} 集', { from: progress.fromEpisode, to: progress.toEpisode }) : t('已追平')}{p && ` · ${p.mo}/${p.d} ${pad(p.hh)}:${pad(p.mm)}`}{today && ` · ${today.episode}`}</div>
             {progress && <div className="episode-buttons">{Array.from({ length: Math.min(progress.count, 30) }, (_, i) => progress.fromEpisode + i).map(ep => <button className="iconbtn" key={ep} title={t('看到第 {n} 集', { n: ep })} onClick={() => onWatched(show.id, ep)}>{t('第 {n} 集', { n: ep })}</button>)}{progress.count > 30 && <span>… {t('第 {n} 集', { n: progress.toEpisode })}</span>}</div>}

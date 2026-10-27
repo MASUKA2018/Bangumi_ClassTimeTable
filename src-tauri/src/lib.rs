@@ -1,5 +1,8 @@
-#[cfg(desktop)]
 mod backups;
+mod covers;
+#[cfg(target_os = "android")]
+mod mobile;
+mod preferences;
 #[cfg(desktop)]
 mod tray_watch;
 #[cfg(desktop)]
@@ -89,21 +92,16 @@ fn sync_window_theme(
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let mut builder = tauri::Builder::default();
+    #[cfg(target_os = "android")]
+    {
+        builder = builder.plugin(mobile::init());
+    }
 
     // Desktop shortcuts may be clicked more than once. Keep one process and bring the
     // existing timetable back to the foreground instead of opening duplicate windows.
     #[cfg(desktop)]
     {
         builder = builder
-            .invoke_handler(tauri::generate_handler![
-                sync_window_theme,
-                backups::list_local_backups,
-                backups::read_local_backup,
-                backups::save_local_backup,
-                updates::check_app_update,
-                updates::install_app_update,
-                tray_watch::set_tray_watch_list
-            ])
             .plugin(tauri_plugin_updater::Builder::new().build())
             .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
                 show_main_window(app);
@@ -184,6 +182,43 @@ pub fn run() {
             });
     }
 
+    #[cfg(desktop)]
+    {
+        builder = builder.invoke_handler(tauri::generate_handler![
+            sync_window_theme,
+            backups::list_local_backups,
+            backups::read_local_backup,
+            backups::save_local_backup,
+            covers::cached_cover,
+            preferences::preferences_request,
+            updates::check_app_update,
+            updates::install_app_update,
+            tray_watch::set_tray_watch_list
+        ]);
+    }
+    #[cfg(target_os = "android")]
+    {
+        builder = builder.invoke_handler(tauri::generate_handler![
+            backups::list_local_backups,
+            backups::read_local_backup,
+            backups::save_local_backup,
+            covers::cached_cover,
+            preferences::preferences_request,
+            mobile::android_export_text,
+            mobile::android_reminder_settings,
+            mobile::android_launch_subject
+        ]);
+    }
+    #[cfg(all(mobile, not(target_os = "android")))]
+    {
+        builder = builder.invoke_handler(tauri::generate_handler![
+            backups::list_local_backups,
+            backups::read_local_backup,
+            backups::save_local_backup,
+            covers::cached_cover,
+            preferences::preferences_request
+        ]);
+    }
     builder
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_notification::init())

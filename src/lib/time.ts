@@ -102,7 +102,7 @@ export function slotFor(show: Show, settings: Settings, ref?: number): AirSlot {
   const tz = displayTz(settings)
   const anchorT = show.airFix?.anchorAt ? Date.parse(show.airFix.anchorAt) : NaN
   const slotBase =
-    recentEpSlotBase(show, ref) ?? (Number.isNaN(anchorT) ? (show.broadcastAt ?? show.begin) : anchorT)
+    recentEpSlotBase(show, ref) ?? (Number.isNaN(anchorT) ? (show.broadcastAt ?? (show.timePending ? undefined : show.begin)) : anchorT)
   if (slotBase && show.periodDays === 7) {
     const p = partsInZone(slotBase, tz)
     let day = p.wd

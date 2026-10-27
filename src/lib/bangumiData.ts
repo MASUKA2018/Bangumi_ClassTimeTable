@@ -22,6 +22,7 @@ export interface BdItem {
   titleHant?: string // 繁中译名(titleTranslate['zh-Hant'])
   titleEn?: string // 英文译名(titleTranslate['en'])
   begin: number // epoch ms
+  timeKnown?: boolean
   end: number // 0 = 未完结
   periodDays: number
   broadcastAt?: number // broadcast 锚点(R/<ISO>/PnD 的起点):长篇换档后比 begin 新
@@ -114,6 +115,7 @@ function trimDataset(raw: any, now: number): BdItem[] {
       titleHant: it.titleTranslate?.['zh-Hant']?.[0],
       titleEn: it.titleTranslate?.['en']?.[0],
       begin,
+      timeKnown: bc.at !== undefined || (typeof it.begin === 'string' && it.begin.includes('T')),
       end: Number.isNaN(end) ? 0 : end,
       periodDays: bc.periodDays,
       // 锚点与 begin 相同(常态)不存,省缓存;不同才有信息量(长篇换档)
@@ -126,13 +128,13 @@ function trimDataset(raw: any, now: number): BdItem[] {
   return out
 }
 
-export async function fetchBangumiData(): Promise<BdBundle> {
+export async function fetchBangumiData(force = false): Promise<BdBundle> {
   const now = Date.now()
   try {
     const raw = localStorage.getItem(CACHE_KEY)
     if (raw) {
       const stored = JSON.parse(raw) as StoredBd
-      if (now - stored.t < TTL) return bundle(stored.items, stored.t)
+      if (!force && now - stored.t < TTL) return bundle(stored.items, stored.t)
     }
   } catch {}
 
@@ -150,6 +152,11 @@ export async function fetchBangumiData(): Promise<BdBundle> {
       lastErr = e
     }
   }
+  if (force) throw lastErr ?? new Error('bangumi-data 更新失败')
+  try {
+    const old = JSON.parse(localStorage.getItem(CACHE_KEY) ?? 'null') as StoredBd | null
+    if (old?.items?.length) return bundle(old.items, old.t)
+  } catch {}
   // 两个 CDN 都失败:退化为空集(课表仍可用 calendar API 渲染,只是没有精确时间)
   console.warn('bangumi-data 拉取失败,课表将缺少精确时间', lastErr)
   return bundle([], now)

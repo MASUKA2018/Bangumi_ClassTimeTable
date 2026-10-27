@@ -11,12 +11,13 @@ export function isNativeApp(): boolean {
   return typeof window !== 'undefined' && window.__TAURI_INTERNALS__ !== undefined
 }
 
-export type NativePlatform = 'windows' | 'macos' | 'linux' | 'other'
+export type NativePlatform = 'windows' | 'macos' | 'linux' | 'android' | 'other'
 
 export function nativePlatform(): NativePlatform {
   if (typeof navigator === 'undefined') return 'other'
   const ua = navigator.userAgent
-  if (/Android|iPhone|iPad|iPod/i.test(ua)) return 'other'
+  if (/Android/i.test(ua)) return 'android'
+  if (/iPhone|iPad|iPod/i.test(ua)) return 'other'
   if (/Windows/i.test(ua)) return 'windows'
   if (/Macintosh|Mac OS X/i.test(ua)) return 'macos'
   if (/Linux/i.test(ua)) return 'linux'
@@ -24,7 +25,7 @@ export function nativePlatform(): NativePlatform {
 }
 
 export function isDesktopNativeApp(): boolean {
-  return isNativeApp() && nativePlatform() !== 'other'
+  return isNativeApp() && ['windows','macos','linux'].includes(nativePlatform())
 }
 
 /** Match native title-bar appearance to the same palette used by the webview. */

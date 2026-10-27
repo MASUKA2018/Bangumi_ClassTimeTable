@@ -1,3 +1,4 @@
+import Cover from './Cover'
 import { useEffect, useMemo, useState } from 'react'
 import type { AirFix, CollectMemo, FriendsMap, Settings, Show, Tracking, WatchStatus } from '../types'
 import { fetchSubject, type SubjectInfo } from '../lib/api'
@@ -115,7 +116,7 @@ export function DetailBody(props: Props) {
       </button>
 
       <div className="dm-head">
-          {image ? <img className="cover" src={image} alt="" /> : null}
+          <Cover src={image} className="cover" />
           <div>
             <h2>
               <a href={`https://bgm.tv/subject/${show.id}`} target="_blank" rel="noreferrer">

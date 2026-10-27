@@ -39,6 +39,7 @@ export interface Show {
   watchers?: number // 多少人在看(collection.doing)
   airWeekdayJst?: number // ISO 1=周一..7=周日,来自 calendar API 的分组
   begin?: number // 第一集播出时刻(epoch ms),来自 bangumi-data
+  timePending?: boolean // 仅公布日期、未公布具体时刻
   end?: number // 完结时刻(epoch ms),0 = 未完结
   periodDays: number // 放送周期(天),周番 7
   broadcastAt?: number // bangumi-data broadcast 锚点:长篇换档后相位比 begin 准(柯南 begin 是 1996 年周一档)
@@ -80,6 +81,10 @@ export interface Tracking {
 
 export interface ShowReminderPreference { mode: 'inherit' | 'off' | 'before' | 'after'; offset: number }
 export interface Settings {
+  reminderSize: 'small' | 'medium' | 'large'
+  reminderCorner: 'bottom-right' | 'bottom-left' | 'top-right' | 'top-left'
+  reminderMonitor: 'primary' | 'main'
+  androidBackgroundReminders: boolean
   showReminders: Record<number, ShowReminderPreference>
   quietHoursEnabled: boolean
   quietHoursStart: string

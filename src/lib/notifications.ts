@@ -21,6 +21,10 @@ export interface ReminderCardItem {
 }
 
 export interface RichReminderPayload {
+  popupSize?: Settings['reminderSize']
+  popupCorner?: Settings['reminderCorner']
+  popupMonitor?: Settings['reminderMonitor']
+  popupScale?: number
   kind: ReminderKind
   heading: string
   emptyText: string
@@ -148,6 +152,7 @@ export function buildRichReminderPayload(
     lang: settings.lang,
     autoHideSeconds: settings.reminderDismissSeconds,
     trigger: 'daily',
+    popupSize: settings.reminderSize, popupCorner: settings.reminderCorner, popupMonitor: settings.reminderMonitor,
     items: matching.map(({ show, occurrence }) => ({
       id: show.id,
       title: displayName(show),
@@ -178,6 +183,7 @@ export function buildEpisodeReminders(shows: Show[], tracking: Tracking, setting
       const key = `${show.id}:${occurrence.ep}:${occurrence.t}:${mode}:${minutes}`
       out.push({ key, payload: {
         kind: 'watching', theme: settings.theme, lang: settings.lang, autoHideSeconds: settings.reminderDismissSeconds,
+        popupSize: settings.reminderSize, popupCorner: settings.reminderCorner, popupMonitor: settings.reminderMonitor,
         trigger: 'episode', heading: t(mode === 'before' ? '即将放送' : '放送后提醒'), emptyText: '',
         items: [{ id: show.id, title: displayName(show), cover: show.image, airTime: displayAirTime(occurrence.t, settings), episode: episodeText(occurrence), episodeNumber: occurrence.epEnd, airAt: occurrence.t }],
       } })
@@ -258,8 +264,8 @@ export async function notificationPermissionGranted(): Promise<boolean> {
 
 export async function sendSystemNotification(message: ReminderMessage): Promise<void> {
   if (isNativeApp()) {
-    const { sendNotification } = await import('@tauri-apps/plugin-notification')
-    await sendNotification(message)
+    const { invoke } = await import('@tauri-apps/api/core')
+    await invoke('plugin:notification|notify', { options: message })
     return
   }
   if (typeof window === 'undefined' || !('Notification' in window)) throw new Error('notifications unsupported')

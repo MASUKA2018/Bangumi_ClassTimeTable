@@ -1,0 +1,22 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "番组课表",
+        "width": 400,
+        "height": 800,
+        "resizable": true,
+        "backgroundColor": "#2d2e2f"
+      }
+    ]
+  },
+  "bundle": {
+    "createUpdaterArtifacts": false,
+    "android": {
+      "minSdkVersion": 26,
+      "versionCode": 600
+    }
+  }
+}

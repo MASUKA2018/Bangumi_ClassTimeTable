@@ -1,0 +1,31 @@
+.review-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 16px; margin-top: 16px; }
+.review-grid article { padding: 16px; background: var(--card); border: 1px solid var(--border); border-radius: 12px; }
+.review-grid dl > div { display:flex; justify-content:space-between; gap:12px; margin:12px 0; }
+.review-grid dd { margin:0; font-size:24px; font-variant-numeric:tabular-nums; color:var(--pink-strong); }
+.reminder-history { max-height:260px; overflow:auto; overflow-wrap:anywhere; }
+.reminder-history p { padding:8px 0; border-bottom:1px solid var(--border); font-size:12px; }
+.preference-actions { display:flex; flex-wrap:wrap; gap:8px; }
+.feature-field input:not([type='checkbox']) { min-width:0; max-width:100%; padding:8px; color:var(--text); background:var(--card); border:1px solid var(--border); border-radius:6px; }
+.cover.ph { display:flex; align-items:center; justify-content:center; }
+.mobile-filter-select { display:none; }
+@media(max-width:720px) {
+  .site-header { gap:8px; padding:10px 12px; }
+  .site-header h1 { width:100%; display:flex; align-items:center; justify-content:space-between; font-size:20px; }
+  .site-header .domains { display:none; }
+  .site-header .spacer { display:none; }
+  .site-header .iconbtn { min-height:40px; }
+  .toolbar { gap:8px; padding:8px 12px; }
+  .toolbar .quick-filter { display:none; }
+  .mobile-filter-select { display:block; color:var(--text); background:var(--card); border:1px solid var(--border); border-radius:7px; min-height:40px; padding:4px 8px; }
+  .toolbar .search { min-height:42px; flex-basis:100%; width:100%; }
+  .chip,.seg button,.feature-section button,.pending-actions button { min-height:40px; }
+  .overlay { padding:max(8px,env(safe-area-inset-top)) max(8px,env(safe-area-inset-right)) max(8px,env(safe-area-inset-bottom)) max(8px,env(safe-area-inset-left)); }
+  .modal { max-height:calc(100dvh - 16px); max-width:100%; overflow-x:hidden; padding:18px 14px; }
+  .modal .close { width:40px; height:40px; font-size:24px; }
+  .feature-field { flex-wrap:wrap; gap:8px; }
+  .feature-field input:not([type='checkbox']),.feature-field select { max-width:100%; min-height:40px; font-size:16px; }
+  .feature-field input[type='url'],.feature-field input[type='password'] { flex:1 1 100%; width:100%; }
+  .review-grid { grid-template-columns:1fr; }
+  .pending-tools { flex-wrap:wrap; }
+  .pending-tools input { min-height:42px; max-width:100%; }
+}

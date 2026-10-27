@@ -1,0 +1,43 @@
+name: Android Client
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['src/**', 'src-tauri/**', 'package*.json', 'index.html', 'vite.config.ts', 'tsconfig.json', '.github/workflows/android-client.yml']
+  pull_request:
+    paths: ['src/**', 'src-tauri/**', 'package*.json', 'index.html', 'vite.config.ts', 'tsconfig.json', '.github/workflows/android-client.yml']
+permissions:
+  contents: read
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android
+      - name: Install Android build dependencies
+        run: |
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" 'platforms;android-36' 'build-tools;36.0.0' 'ndk;27.2.12479018'
+          echo "NDK_HOME=$ANDROID_HOME/ndk/27.2.12479018" >> "$GITHUB_ENV"
+      - run: npm ci
+      - run: npm test
+      - run: npm run build
+      - name: Build isolated Android QA APK
+        run: npx tauri android build --apk --target aarch64 --debug
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bangumi-android-arm64-qa
+          path: src-tauri/gen/android/app/build/outputs/apk/universal/debug/*.apk
+          if-no-files-found: error
+          retention-days: 14

@@ -22,3 +22,17 @@ signing/
 *.jks
 id_rsa
 id_ed25519
+
+# Android build products and generated local plugin wiring.
+src-tauri/gen/android/**/build/
+src-tauri/gen/android/**/.gradle/
+src-tauri/gen/android/**/.kotlin/
+src-tauri/gen/android/app/src/main/jniLibs/
+src-tauri/gen/android/app/tauri.properties
+src-tauri/gen/android/app/tauri.build.gradle.kts
+src-tauri/gen/android/tauri.settings.gradle
+src-tauri/gen/android/app/src/main/java/**/generated/
+src-tauri/vendor/**/build/
+src-tauri/vendor/**/.gradle/
+src-tauri/vendor/**/.kotlin/
+src-tauri/vendor/**/.build/

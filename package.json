@@ -1,7 +1,7 @@
 {
   "name": "bangumi-timetable-app",
   "private": true,
-  "version": "0.5.0",
+  "version": "0.6.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -14,7 +14,7 @@
     "desktop:icon": "tauri icon public/icon-512.png",
     "android:init": "tauri android init",
     "android": "tauri android dev",
-    "android:build": "tauri android build"
+    "android:build": "tauri android build --apk --target aarch64"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.12.1",

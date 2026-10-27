@@ -94,20 +94,36 @@ npm run desktop:build -- --bundles nsis
 
 ## Android
 
-安装 Android Studio，并通过 SDK Manager 安装 Android SDK Platform、Platform-Tools、Build-Tools、Command-line Tools 和 NDK。配置 `JAVA_HOME`、`ANDROID_HOME`、`NDK_HOME` 后执行：
+### 0.6 第一版（2026-10-28）
+
+Android 原生工程已纳入 `src-tauri/gen/android/`，与桌面端共用 React、课表、Bangumi 进度同步及备份格式。最低 Android 8（API 26），当前构建面向 ARM64，目标 API 36；系统 Android System WebView 应保持更新。Mac 可以直接开发和打包 APK，无需 Windows。Android Studio 是可选的图形开发环境，也可使用 JDK 21、Android SDK 命令行工具和 NDK 27.2.12479018 构建。
+
+- 手机默认日视图，窄屏将追番状态筛选合并为下拉框；处理系统栏、刘海与键盘遮挡。系统返回键先关闭设置、详情等弹窗，再将主应用放入后台。
+- 通知先在设置中授权。启用系统后台提醒后，每次打开、改变追番或提醒设置时，向系统安排未来 7 天、最多 200 条提醒；每日摘要与逐集提醒均遵循静音、免打扰及所选时区。回到应用会重建计划，避免后台计时器依赖。系统省电可能造成延迟，强制停止会阻止提醒；需要定期打开应用获取新数据。Android 12+ 可通过“系统准时提醒设置”授权闹钟与提醒，应用不会自行开启该权限。
+- 备份与安全快照使用 Android 应用私有目录；JSON 与 ICS 导出使用系统文件分享，导入沿用系统文件选择。卸载会移除应用私有记录，应先导出备份。
+- 正式 APK 使用独立的 Android keystore，和桌面 Tauri 更新私钥无关；签名文件与密码保存在仓库之外。通过 `BTT_ANDROID_KEY_PROPERTIES` 指向包含 `storeFile`、`storePassword`、`keyAlias`、`keyPassword` 的文件启用 release 签名。不得提交该文件、keystore 或密码。
+- `--debug` 使用独立 `.qa` 应用 ID，供模拟器和 CI 测试，不覆盖正式应用。Android 的程序更新目前通过下载并安装同签名新版 APK 完成；桌面在线更新器不在 Android 使用。
+
+本地工具链可通过外部环境文件配置 `JAVA_HOME`、`ANDROID_HOME`、`NDK_HOME`。首次初始化已完成，日常构建不必重新执行 `android:init`，避免覆盖手工维护的原生适配。
 
 ```bash
-npm run android:init
-npm run android
+npm run android:build  # ARM64 release APK；签名需要上述外部配置
+npx tauri android build --apk --target aarch64 --debug  # 独立 QA 应用
 ```
 
-生成 APK/AAB：
+GitHub Actions 的 `Android Client` 运行前端测试并构建 QA APK，只上传 Artifacts，不会发布正式版、上传密钥或覆盖更新清单。真实 Android 手机的厂商省电策略仍需实机验证，模拟器验证不等同于真机验证。
 
-```bash
-npm run android:build
-```
+当前锁定的通知插件 2.4.0 在 Android 计划保存与恢复上存在缺陷，已在 `src-tauri/vendor/tauri-plugin-notification/` 保留带原许可证的最小源码补丁。修正内容见其中的 `PATCHES.md`；升级插件时须复核，勿直接删除补丁后宣称后台提醒仍然可靠。
 
-Android 与桌面端共用数据和业务代码。手机窄屏默认进入日视图，详情与设置使用弹窗；周视图仍保留完整七列，可横向滑动查看。
+### 0.6 共用功能
+
+- 季度目录、历史数据包优先从公开仓库的 CDN／GitHub 镜像读取，12 小时缓存；联网失败回退到成功缓存或内置数据。下季预告从已公布的季度包或 bangumi-data 获取，不保证未来条目已全部收录。只有日期的条目保持时间待定，不虚构午夜时间。手动刷新会跳过当季 API 与元数据的有效期；启动时可以使用过期成功数据，失败不覆盖现有课表。
+- 桌面和 Android 的封面保存在应用缓存目录，最多 80 MB／400 张，超过上限清理旧图；同一 URL 的请求合并、最多 4 路并发。图片失败有限重试，恢复联网与“重新加载封面”可再试。封面缓存不进入追番备份；初次未成功下载的图片无法在离线时补出。
+- 桌面提醒窗口可选择小／中／大、四个角落、主屏或主窗口所在屏幕；使用物理像素定位，并限制在工作区内。提醒历史在本机保留 30 天／200 条，Android 的“已安排”不宣称已经送达。
+- 跨设备设置同步是可选的手动 WebDAV 读取／预览／应用和上传。需要用户自己的 HTTPS WebDAV 文件地址及已建立的目录。仅同步显示和筛选偏好，提醒可选择加入；账号、令牌、观看进度、窗口尺寸、后台提醒开关及显示器选择不随设置同步。密码仅留在当前设置面板的内存中，不保存到备份或诊断。覆盖已有远端文件要求强 ETag，使用条件请求阻止并发覆盖；应用远端设置前先保存本机安全快照。
+- 季度回顾对比所选季和上一季，按当前收藏状态统计作品，按各季实际已播日期统计已看与在看欠番章节。不是过去的收藏快照，不推算未知时间；长期番只计该季度范围内的章节。旧季度没有数据时单独显示缺失，不影响另一个季度。
+
+周视图保留完整七列，手机上可横向滑动查看。连接调试手机或启动模拟器后，可用 `npm run android` 启动开发模式。
 
 ## 放送数据更新
 

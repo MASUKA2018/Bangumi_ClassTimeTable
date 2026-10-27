@@ -49,6 +49,7 @@ const defaultTheme = (): Settings['theme'] =>
   typeof matchMedia !== 'undefined' && matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'bgm-dark'
 
 export const DEFAULT_SETTINGS: Settings = {
+  reminderSize: 'medium', reminderCorner: 'bottom-right', reminderMonitor: 'primary', androidBackgroundReminders: true,
   showReminders: {}, quietHoursEnabled: false, quietHoursStart: '23:00', quietHoursEnd: '08:00',
   theme: defaultTheme(),
   themeMode: 'manual',
@@ -86,6 +87,9 @@ export function normalizeSettings(raw: unknown): Settings {
     }
   }
   result.theme = themeDefinition(result.theme).id
+  result.reminderSize = ['small','medium','large'].includes(result.reminderSize) ? result.reminderSize : 'medium'
+  result.reminderCorner = ['bottom-right','bottom-left','top-right','top-left'].includes(result.reminderCorner) ? result.reminderCorner : 'bottom-right'
+  result.reminderMonitor = result.reminderMonitor === 'main' ? 'main' : 'primary'
   result.lang = ['zh-Hans', 'zh-Hant', 'ja', 'en'].includes(result.lang) ? result.lang : DEFAULT_SETTINGS.lang
   result.tzMode = result.tzMode === 'jst' ? 'jst' : 'local'
   result.themeMode = result.themeMode === 'system' ? 'system' : 'manual'

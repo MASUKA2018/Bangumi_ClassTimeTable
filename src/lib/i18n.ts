@@ -7,6 +7,7 @@
  */
 
 import { FEATURE_STRINGS } from './featureStrings'
+import { NEXT_STRINGS } from './nextStrings'
 export type Lang = 'zh-Hans' | 'zh-Hant' | 'ja' | 'en'
 
 export const LANGS: [Lang, string][] = [
@@ -33,6 +34,7 @@ export function detectLang(): Lang {
 // value = [繁中, 日本語, EN]
 const DICT: Record<string, [string, string, string]> = {
   ...FEATURE_STRINGS,
+  ...NEXT_STRINGS,
   // ── 顶栏 / 工具栏 ──
   番组课表: ['番組課表', '番組時間割', 'Bangumi Timetable'],
   '(当季)': ['(當季)', '(今期)', ' (current)'],

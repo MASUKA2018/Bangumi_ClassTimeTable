@@ -55,7 +55,7 @@ export function epTime(s: Show, ep: number): number | null {
     const at = parseAt(f.anchorAt)
     if (at !== null) return at + (ep - f.anchorEp) * periodMs(s)
   }
-  if (s.begin) return alignPhase(s.begin + (ep - 1) * periodMs(s), s)
+  if (s.begin && !s.timePending) return alignPhase(s.begin + (ep - 1) * periodMs(s), s)
   return null
 }
 
@@ -79,7 +79,7 @@ export function airedCount(s: Show, now: number): number | undefined {
   const f = s.airFix
   const keys = epDateKeys(s)
 
-  const hasRule = !!(s.begin || f?.advanceEps || (f?.anchorEp != null && f.anchorAt) || keys.length)
+  const hasRule = !!((s.begin && !s.timePending) || f?.advanceEps || (f?.anchorEp != null && f.anchorAt) || keys.length)
   if (!hasRule) return undefined
   // 开播 400 天以上且不知总集数的长篇,周数折算不可靠(除非有校正兜底)
   if (s.begin && !total && now - s.begin > 400 * DAY_MS && !f) return undefined
@@ -144,7 +144,7 @@ export function occurrencesBetween(s: Show, lo: number, hi: number): Occurrence[
   }
 
   // 线性段(避开先行/锚点覆盖的集数区间)
-  if (s.begin) {
+  if (s.begin && !s.timePending) {
     const linLo = (f?.advanceEps ?? 0) + 1
     const linHi = f?.anchorEp != null && parseAt(f.anchorAt) !== null ? f.anchorEp - 1 : Infinity
     // 前后各放宽一集:相位对齐(±半周期)可能把边缘集移入窗口,靠下面的窗口过滤收口

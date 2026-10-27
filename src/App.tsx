@@ -33,7 +33,7 @@ import { buildShows, fetchEnhance } from './lib/merge'
 import { behindProgress, continuity, type Continuity } from './lib/progress'
 import { weightedScore } from './lib/score'
 import { currentSeason, displayTz, partsInZone, seasonStartInstant } from './lib/time'
-import { fetchSeasonList, fetchSeasonPack, fmtSeason, seasonMonthOf, seasonStartOf } from './lib/seasons'
+import { fetchSeasonList, fetchSeasonPack, fetchSeasonPreview, adjacentSeason, fmtSeason, seasonMonthOf, seasonStartOf } from './lib/seasons'
 import { buildIcs, downloadIcs } from './lib/ics'
 import { loadPersisted, savePersisted, type Persisted, type RegionClass } from './lib/store'
 import { createBackup } from './lib/backups'
@@ -42,6 +42,11 @@ import { useAppUpdates } from './lib/updates'
 import { airedEps } from './lib/progress'
 import PendingPanel from './components/PendingPanel'
 import DesktopFeatures from './components/DesktopFeatures'
+import NextFeatures from './components/NextFeatures'
+import QuarterReviewPanel from './components/QuarterReviewPanel'
+import { cachedData, cacheData } from './lib/dataCache'
+import { recordReminder } from './lib/reminderHistory'
+import { isAndroidApp, planAndroidReminders, scheduleAndroidReminders } from './lib/androidReminders'
 import {
   buildRichReminderPayload,
   buildEpisodeReminders, episodeReminderSent, markEpisodeReminders,
@@ -60,7 +65,7 @@ import {
   type ReminderStatus,
 } from './lib/notifications'
 import { showRichReminder, REMINDER_ACTION_EVENT, reminderPayloadKey, type ReminderAction } from './lib/reminderWindow'
-import { isNativeApp } from './lib/native'
+import { isNativeApp, isDesktopNativeApp } from './lib/native'
 import { THEMES } from './lib/themes'
 import WeekView from './components/WeekView'
 import DayView from './components/DayView'
@@ -127,9 +132,10 @@ const REMINDER_KINDS: ReminderKind[] = ['watching', 'other']
 
 /** 原生端优先展示主题卡片；创建卡片窗口失败或网页端则回落到系统通知。 */
 async function deliverReminder(payload: RichReminderPayload, allowPermissionPrompt: boolean) {
-  if (isNativeApp()) {
+  if (isDesktopNativeApp()) {
     try {
       await showRichReminder(payload)
+      recordReminder(payload, 'shown')
       return 'granted' as const
     } catch (error) {
       console.warn('富提醒窗口创建失败，回落到系统通知', error)
@@ -140,8 +146,9 @@ async function deliverReminder(payload: RichReminderPayload, allowPermissionProm
     : (await notificationPermissionGranted())
       ? 'granted'
       : 'denied'
-  if (access !== 'granted') return access
-  await sendSystemNotification(richReminderToSystemMessage(payload))
+  if (access !== 'granted') { recordReminder(payload, 'denied'); return access }
+  try { await sendSystemNotification(richReminderToSystemMessage(payload)); recordReminder(payload,'shown') }
+  catch (error) { recordReminder(payload,'failed'); throw error }
   return 'granted' as const
 }
 
@@ -163,6 +170,11 @@ export default function App() {
   const [storageError, setStorageError] = useState('')
   const [historyError, setHistoryError] = useState('')
   const [showPending, setShowPending] = useState(false)
+  const [showReview, setShowReview] = useState(false)
+  const [androidCount, setAndroidCount] = useState(0)
+  const [androidError, setAndroidError] = useState('')
+  const [notificationRevision, setNotificationRevision] = useState(0)
+  const [coverRevision, setCoverRevision] = useState(0)
   const [undoProgress, setUndoProgress] = useState<{ id: number; before: number; after: number } | null>(null)
   const syncPausedRef = useRef(localStorage.getItem('btt:bgm:sync-paused:v1') === 'true')
   const [syncPaused, setSyncPaused] = useState(syncPausedRef.current)
@@ -462,7 +474,11 @@ export default function App() {
         setDataSource(enh.stale ? '离线缓存（更新失败）' : enh.source === 'remote' ? '在线数据' : enh.source === 'cache' ? '本机缓存' : '安装包内置数据')
         setShows(buildShows(cal, bd, enh, Date.now()))
       } catch (e) {
-        if (alive) setLoadError(e instanceof Error ? e.message : String(e))
+        if (alive) {
+          const old=cachedData<Show[]>('live-shows')
+          if (old && Array.isArray(old.value) && old.value.every(x=>Number.isSafeInteger(x?.id))) { setShows(old.value); setDataSource('离线缓存（更新失败）') }
+          else setLoadError(e instanceof Error ? e.message : String(e))
+        }
       }
     })()
     fetchSeasonList().then((list) => alive && setSeasonList(list))
@@ -475,7 +491,9 @@ export default function App() {
     if (dataBusy) return
     setDataBusy(true); setDataMessage('')
     try {
-      const [cal, bd, enh] = await Promise.all([fetchCalendar(), fetchBangumiData(), fetchEnhance(true)])
+      const [cal, bd, enh, quarters] = await Promise.all([fetchCalendar(true), fetchBangumiData(true), fetchEnhance(true), fetchSeasonList(true)])
+      if (quarters.length) setSeasonList(quarters)
+      setPacks({}); enriched.current.clear(); setCoverRevision(x=>x+1)
       setScheduleDataAt(enh.syncedAt); setDataSource(enh.source === 'remote' ? '在线数据' : '安装包内置数据')
       setShows(buildShows(cal, bd, enh, Date.now())); setLoadError(null)
       setDataMessage(t('放送数据已更新。'))
@@ -492,8 +510,9 @@ export default function App() {
   useEffect(() => {
     if (seasonSel === 'live' || packs[seasonSel]) return
     let alive = true
-    fetchSeasonPack(seasonSel)
-      .then((list) => alive && setPacks((p) => ({ ...p, [seasonSel]: list })))
+    const current = currentSeason(Date.now()).yyyymm
+    ;(seasonSel > current ? fetchSeasonPreview(seasonSel) : fetchSeasonPack(seasonSel))
+      .then((list) => { if(alive){setPacks((p) => ({ ...p, [seasonSel]: list }));setLoadError(null)} })
       .catch((e) => alive && setLoadError(e instanceof Error ? e.message : String(e)))
     return () => {
       alive = false
@@ -520,8 +539,8 @@ export default function App() {
       for (const t of targets) {
         enriched.current.add(t.id)
         try {
-          const cached = readCachedSubject(t.id)
-          const info = cached ?? (await fetchSubject(t.id))
+          const cached = coverRevision > 0 ? null : readCachedSubject(t.id)
+          const info = cached ?? (await fetchSubject(t.id, coverRevision > 0))
           if (!alive) return
           applySubjectInfo(info)
           // 缓存命中不占用网络配额；真实请求限制在约每秒 3 次。
@@ -536,7 +555,7 @@ export default function App() {
       alive = false
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [shows === null, tracking.status])
+  }, [shows === null, tracking.status, coverRevision])
 
   const applySubjectInfo = useCallback((info: SubjectInfo) => {
     setShows((prev) =>
@@ -608,6 +627,32 @@ export default function App() {
     () => (shows ? shows.map((s) => (overrides[s.id] ? { ...s, airFix: overrides[s.id] } : s)) : null),
     [shows, overrides],
   )
+
+  useEffect(() => { if (shows?.length) cacheData('live-shows', shows) }, [shows])
+  useEffect(() => {
+    const reload = () => { enriched.current.clear(); setCoverRevision(x=>x+1) }
+    const permission = () => setNotificationRevision(x=>x+1)
+    const resume=()=>{if(isAndroidApp() && document.visibilityState==='visible')permission()}
+    window.addEventListener('btt-reload-covers',reload); window.addEventListener('btt-notification-permission',permission);document.addEventListener('visibilitychange',resume)
+    return () => { window.removeEventListener('btt-reload-covers',reload); window.removeEventListener('btt-notification-permission',permission);document.removeEventListener('visibilitychange',resume) }
+  }, [])
+  const androidSignature=useMemo(()=>isAndroidApp() && liveReminderShows ? JSON.stringify(planAndroidReminders(liveReminderShows,tracking,settings,now).map(plan=>({id:plan.id,at:plan.at,message:richReminderToSystemMessage(plan.payload)}))) : '',[liveReminderShows,tracking,settings,now])
+  const scheduledRevision=useRef(-1)
+  useEffect(() => {
+    if (!isAndroidApp() || !liveReminderShows) return
+    let alive=true
+    const timer=window.setTimeout(()=>{
+      scheduleAndroidReminders(liveReminderShows,tracking,settings,Date.now(),scheduledRevision.current!==notificationRevision).then(count=>{scheduledRevision.current=notificationRevision;if(alive){setAndroidCount(count);setAndroidError('')}})
+        .catch(()=>{if(alive){setAndroidError(t('系统提醒安排失败，请检查通知权限并重新打开应用。'));setAndroidCount(0)}})
+    },1000)
+    return ()=>{alive=false;window.clearTimeout(timer)}
+  },[androidSignature,notificationRevision])
+  const applySharedPreferences=async (data:Persisted) => {
+    await createBackup(loadPersisted(),'restore')
+    const current=loadPersisted(), next={...current,settings:data.settings,filters:data.filters}
+    if (!savePersisted(next)) throw new Error(t('本机存储写入失败，请立即导出备份。'))
+    setSettings(next.settings);setContSel(next.filters.cont);setRegSel(next.filters.reg);setRepMin(next.filters.repMin);setSrcSel(next.filters.src);setTagSel(next.filters.tag)
+  }
 
   const setOverride = useCallback((id: number, fix: AirFix | null) => {
     setOverrides((o) => {
@@ -840,7 +885,7 @@ export default function App() {
 
   const traySnapshot = useRef('')
   useEffect(() => {
-    if (!isNativeApp() || !liveReminderShows) return
+    if (!isDesktopNativeApp() || !liveReminderShows) return
     const rows = trayWatchRows(liveReminderShows, tracking, settings, now)
     const labels = { today: t('今日待看（最多 10 部，已看／已播）'), show: t('显示主窗口'), quit: t('退出'), empty: t('今日暂无在看更新'), next: t('看完下一集'), detail: t('查看详情') }
     const snapshot = JSON.stringify({ rows, labels })
@@ -947,7 +992,7 @@ export default function App() {
   )
 
   useEffect(() => {
-    if (!liveReminderShows) return
+    if (!liveReminderShows || (isAndroidApp() && settings.androidBackgroundReminders && androidCount>0)) return
     const dueKinds = REMINDER_KINDS.filter(
       (kind) =>
         !reminderSending.current.has(kind) &&
@@ -984,12 +1029,12 @@ export default function App() {
     return () => {
       alive = false
     }
-  }, [liveReminderShows, now, settings, actualTheme, setReminderKindStatus, tracking])
+  }, [liveReminderShows, now, settings, actualTheme, setReminderKindStatus, tracking, androidCount])
 
   const relativeSending = useRef(false)
   const relativeRetryAt = useRef(0)
   useEffect(() => {
-    if (!liveReminderShows || relativeSending.current || now < relativeRetryAt.current || isQuietTime(settings, now)) return
+    if (!liveReminderShows || (isAndroidApp() && settings.androidBackgroundReminders && androidCount>0) || relativeSending.current || now < relativeRetryAt.current || isQuietTime(settings, now)) return
     const due = buildEpisodeReminders(liveReminderShows, tracking, { ...settings, theme: actualTheme }, now).filter(x => !episodeReminderSent(x.key))
     const snoozes = snoozedReminders().filter(x => x.due <= now)
     if (!due.length && !snoozes.length) return
@@ -1012,10 +1057,11 @@ export default function App() {
       } catch (error) { console.warn('逐集／稍后提醒失败', error) }
       finally { relativeSending.current = false; relativeRetryAt.current = Date.now() + 60_000 }
     })()
-  }, [liveReminderShows, tracking, settings, actualTheme, now])
+  }, [liveReminderShows, tracking, settings, actualTheme, now, androidCount])
 
-  const exportIcs = useCallback(() => {
-    if (effShows) downloadIcs(buildIcs(effShows, tracking, Date.now()))
+  const exportIcs = useCallback(async () => {
+    try { if (effShows) await downloadIcs(buildIcs(effShows, tracking, Date.now())) }
+    catch(error) { setDataMessage(String(error)) }
   }, [effShows, tracking])
 
   const wide = useWideLayout()
@@ -1138,7 +1184,7 @@ export default function App() {
   // 键盘快捷键:←/→ 翻页,Home 回到今天/本周/本月,D/W/M 切视图
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (behindOpen || showSettings || showAbout || showPending || (!wide && openId !== null)) return
+      if (behindOpen || showSettings || showAbout || showPending || showReview || (!wide && openId !== null)) return
       const t = e.target as HTMLElement | null
       if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable))
         return
@@ -1179,7 +1225,38 @@ export default function App() {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [behindOpen, showSettings, showAbout, showPending, wide, openId, effView, archive, effMonthCursor, changeView, pageDay, pageWeek, pageMonthTo])
+  }, [behindOpen, showSettings, showAbout, showPending, showReview, wide, openId, effView, archive, effMonthCursor, changeView, pageDay, pageWeek, pageMonthTo])
+
+  useEffect(()=>{
+    const back=(event:Event)=>{
+      if(showSettings){event.preventDefault();setShowSettings(false)}
+      else if(showReview){event.preventDefault();setShowReview(false)}
+      else if(showPending){event.preventDefault();setShowPending(false)}
+      else if(showAbout){event.preventDefault();setShowAbout(false)}
+      else if(openId!==null){event.preventDefault();setOpenId(null)}
+      else if(advOpen){event.preventDefault();setAdvOpen(false)}
+    }
+    window.addEventListener('btt-back',back)
+    return ()=>window.removeEventListener('btt-back',back)
+  },[showSettings,showReview,showPending,showAbout,openId,advOpen])
+  useEffect(()=>{
+    if(!isAndroidApp())return
+    let alive=true,dispose:(()=>void)|undefined
+    import('@tauri-apps/plugin-notification').then(({onAction})=>onAction(event=>{
+      const payload=event as typeof event & { notification?: { extra?: Record<string,unknown> } }
+      const id=Number(payload.notification?.extra?.showId ?? payload.extra?.showId)
+      if(alive&&Number.isSafeInteger(id)){setSeasonSel('live');openDetail(id)}
+    })).then(listener=>{if(alive)dispose=()=>listener.unregister();else listener.unregister()}).catch(()=>{})
+    return ()=>{alive=false;dispose?.()}
+  },[openDetail])
+  useEffect(()=>{
+    if(!isAndroidApp() || !liveReminderShows)return
+    let alive=true
+    import('@tauri-apps/api/core').then(({invoke})=>invoke<number|null>('android_launch_subject')).then(id=>{
+      if(alive && id && liveReminderShows.some(show=>show.id===id)){setSeasonSel('live');openDetail(id)}
+    }).catch(()=>{})
+    return ()=>{alive=false}
+  },[liveReminderShows===null,openDetail])
 
   const panelW = effView === 'day' ? settings.panelWidthDay : settings.panelWidth
   const viewProps = { tracking, settings, now, seasonStart, archive, friendsMap, onOpen: openDetail }
@@ -1202,11 +1279,12 @@ export default function App() {
               {season.label}
               {t('(当季)')}
             </option>
-            {seasonList
+            {[...new Set([adjacentSeason(season.yyyymm,1),...seasonList])].sort().reverse()
               .filter((s) => s !== season.yyyymm)
               .map((s) => (
                 <option key={s} value={s}>
                   {fmtSeason(s)}
+                  {s>season.yyyymm ? ` ${t('(预告)')}` : ''}
                 </option>
               ))}
           </select>
@@ -1304,10 +1382,13 @@ export default function App() {
           ⚙ {t('设置')}
         </button>
         <button className="iconbtn" onClick={() => setShowPending(true)}>{t('待看清单')}</button>
+        <button className="iconbtn" onClick={() => setShowReview(true)}>{t('季度回顾')}</button>
         {updates.status === 'available' && <button className="iconbtn accent" onClick={() => setShowSettings(true)}>{t('发现新版本')}</button>}
       </header>
 
       <div className="toolbar">
+        {archive && seasonSel>season.yyyymm && baseShows?.length===0 && <span className="feature-hint">{t('该季度暂未收录已公布的新番，请稍后更新放送数据。')}</span>}
+        {archive && seasonSel>season.yyyymm && <span className="feature-hint">{t('新番预告仅展示已公布的数据；放送时间与收录条目仍可能变化。')}</span>}
         {storageError && <span className="err" role="alert">{storageError}</span>}
         <span className="seg">
           {(
@@ -1330,11 +1411,12 @@ export default function App() {
         </span>
 
         {FILTERS.map((f) => (
-          <button key={f.k} className={`chip${filter === f.k ? ' on' : ''}`} onClick={() => setFilter(f.k)}>
+          <button key={f.k} className={`chip quick-filter${filter === f.k ? ' on' : ''}`} onClick={() => setFilter(f.k)}>
             {t(f.label)}
           </button>
         ))}
 
+        <select className="mobile-filter-select" aria-label={t('筛选')} value={filter} onChange={e=>setFilter(e.target.value as Filter)}>{FILTERS.map(f=><option key={f.k} value={f.k}>{t(f.label)}</option>)}</select>
         <span className="adv-wrap">
           <button
             className={`chip${advCount > 0 ? ' on' : ''}`}
@@ -1573,6 +1655,7 @@ export default function App() {
         else setUndoProgress(null)
       }}>{t('撤销')}</button><button className="iconbtn" aria-label={t('关闭')} onClick={() => setUndoProgress(null)}>×</button></div>}
 
+      {showReview && <QuarterReviewPanel current={season.yyyymm} shows={liveReminderShows ?? []} tracking={tracking} seasons={seasonList} now={now} onClose={()=>setShowReview(false)} />}
       {showSettings && (
         <SettingsPanel
           settings={settings}
@@ -1588,6 +1671,7 @@ export default function App() {
           onSyncNow={resumeSync}
           syncPaused={syncPaused}
           features={<>
+            <NextFeatures settings={settings} onChange={patchSettings} onApplyPreferences={applySharedPreferences} androidCount={androidCount} androidError={androidError} />
             <ReliabilityPanel shows={liveReminderShows ?? []} tracking={tracking} remote={remoteSnapshot} busy={syncState.busy} connected={!!account && !account.invalid && !syncPaused} onRetry={retrySubject} onResolve={resolveSubject} onRestore={restoreProgress} />
             <ShowReminderSettings shows={liveReminderShows ?? []} settings={settings} onChange={patchSettings} />
             <DesktopFeatures settings={settings} onChange={patchSettings} updates={updates} onRefreshData={refreshScheduleData} dataBusy={dataBusy} dataMessage={dataMessage} dataSource={dataSource} onRestore={restoreData} backupError={storageError || historyError || backupError} syncPaused={syncPaused} />

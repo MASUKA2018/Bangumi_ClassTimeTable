@@ -6,6 +6,7 @@ import type { OauthConf } from '../lib/oauth'
 import type { ReminderKind, ReminderStatus } from '../lib/notifications'
 import { getAutostartEnabled, setAutostartEnabled, supportsAutostart } from '../lib/autostart'
 import { THEMES } from '../lib/themes'
+import { isAndroidApp } from '../lib/androidReminders'
 
 interface Props {
   settings: Settings
@@ -283,7 +284,7 @@ export default function SettingsPanel({
               label: '在看提醒',
               enabled: settings.watchingReminderEnabled,
               time: settings.watchingReminderTime,
-              hint: '当天更新的“在看”番剧使用带封面的主题卡片提醒。',
+              hint: isAndroidApp() ? '当天更新的“在看”番剧使用系统通知提醒。' : '当天更新的“在看”番剧使用带封面的主题卡片提醒。',
             },
             {
               kind: 'other',
@@ -345,7 +346,7 @@ export default function SettingsPanel({
             </div>
           )
         })}
-        <div className="set-sub reminder-note">{t('两类提醒可使用不同时间；客户端需要保持运行。')}</div>
+        <div className="set-sub reminder-note">{t(isAndroidApp() ? '开启系统后台提醒后，已安排的通知可在应用进入后台后显示。' : '两类提醒可使用不同时间；客户端需要保持运行。')}</div>
 
         <div className="set-row">
           <span className="lbl">{t('好友')}</span>

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import Cover from './Cover'
 import type { FriendsMap, Show, Tracking } from '../types'
 import { airedEps, behindCount, continuity } from '../lib/progress'
 import { displayName, subName, t } from '../lib/i18n'
@@ -31,8 +31,6 @@ export default function ShowCard({
   offWeek,
   onOpen,
 }: Props) {
-  const [imageFailed, setImageFailed] = useState(false)
-  useEffect(() => setImageFailed(false), [show.id, show.image])
   const status = tracking.status[show.id] ?? 'none'
   const watched = tracking.watched[show.id] ?? 0
   const aired = airedEps(show, now)
@@ -51,11 +49,7 @@ export default function ShowCard({
 
   return (
     <button className={cls} onClick={() => onOpen(show.id)} title={show.nameJp}>
-      {show.image && !imageFailed ? (
-        <img className="cover" src={show.image} loading="lazy" alt="" onError={() => setImageFailed(true)} />
-      ) : (
-        <span className="cover ph">番</span>
-      )}
+      <Cover src={show.image} className="cover" />
       <span className="body">
         <span className="title">{displayName(show)}</span>
         {wide && subName(show) ? <span className="jp">{subName(show)}</span> : null}

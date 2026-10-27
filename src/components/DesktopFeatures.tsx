@@ -1,3 +1,5 @@
+import { exportTextFile } from '../lib/exportFile'
+import { isAndroidApp } from '../lib/androidReminders'
 import { useEffect, useRef, useState } from 'react'
 import type { Settings } from '../types'
 import { backupDiff, backupDocument, listBackups, mergeBackup, parseBackup, readBackup, type BackupFile } from '../lib/backups'
@@ -31,12 +33,11 @@ export default function DesktopFeatures({ settings, onChange, updates, onRefresh
     catch (e) { setBackupMessage(String(e)) }
     finally { setRestoring(false) }
   }
-  const exportFile = () => {
-    const blob = new Blob([JSON.stringify(backupDocument(), null, 2)], { type: 'application/json' })
-    const url = URL.createObjectURL(blob), a = document.createElement('a')
-    a.href = url; a.download = `bangumi-timetable-backup-${new Date().toLocaleDateString('sv-SE')}.json`; a.click()
-    setTimeout(() => URL.revokeObjectURL(url), 1000)
+  const exportFile = async () => {
+    try { await exportTextFile(`bangumi-timetable-backup-${new Date().toLocaleDateString('sv-SE')}.json`, JSON.stringify(backupDocument(),null,2), 'application/json') }
+    catch (error) { setBackupMessage(String(error)) }
   }
+
   const diff = incoming ? backupDiff(loadPersisted(), incoming) : null
   return <div className="desktop-features">
     <section className="feature-section"><h3>{t('显示与阅读')}</h3>
@@ -51,7 +52,7 @@ export default function DesktopFeatures({ settings, onChange, updates, onRefresh
       <label className="feature-field"><span>{t('按放送时间提醒在看番剧')}</span><input type="checkbox" checked={settings.episodeReminderEnabled} onChange={e => onChange({ episodeReminderEnabled: e.target.checked })} /></label>
       <div className="feature-field"><span>{t('提醒时机')}</span><select aria-label={t('提醒时机')} value={settings.episodeReminderMode} onChange={e => onChange({ episodeReminderMode: e.target.value as Settings['episodeReminderMode'] })}><option value="before">{t('放送前')}</option><option value="after">{t('放送后')}</option></select><select aria-label={t('提前或延后分钟')} value={settings.episodeReminderOffset} onChange={e => onChange({ episodeReminderOffset: Number(e.target.value) })}>{[0,5,10,15,30].map(x => <option key={x} value={x}>{t('{n} 分钟', { n: x })}</option>)}</select></div>
       <label className="feature-field"><span>{t('提醒自动关闭')}</span><select aria-label={t('提醒自动关闭')} value={settings.reminderDismissSeconds} onChange={e => onChange({ reminderDismissSeconds: Number(e.target.value) })}>{[15,30,60,0].map(x => <option key={x} value={x}>{x ? t('{n} 秒', { n: x }) : t('不自动关闭')}</option>)}</select></label>
-      <p className="feature-hint">{t('鼠标悬停时暂停关闭。程序需保持运行；错过超过 5 分钟的逐集提醒不会集中补发。')}</p>
+      <p className="feature-hint">{t(isAndroidApp() ? '开启系统后台提醒后，已安排的通知可在应用进入后台后显示。' : '鼠标悬停时暂停关闭。程序需保持运行；错过超过 5 分钟的逐集提醒不会集中补发。')}</p>
     </section>
     <section className="feature-section"><h3>{t('更新中心')}</h3>
       <div className="feature-field"><span>{t('程序版本')} {__APP_VERSION__}</span><button className="iconbtn" disabled={!isDesktopNativeApp() || ['checking','installing'].includes(updates.status)} onClick={updates.check}>{t(updates.status === 'checking' ? '正在检查…' : '检查新版本')}</button><a href={RELEASES_URL} target="_blank" rel="noreferrer">{t('下载页面')}</a></div>

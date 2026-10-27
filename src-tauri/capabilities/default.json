@@ -2,11 +2,15 @@
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "main-capability",
   "description": "番组课表主窗口使用的最小桌面权限",
-  "windows": ["main", "reminder-*"],
+  "windows": [
+    "main",
+    "reminder-*"
+  ],
   "permissions": [
     "core:default",
     "core:webview:allow-create-webview-window",
     "core:window:allow-hide",
+    "core:window:allow-set-size",
     "core:window:allow-set-position",
     "core:window:allow-show",
     "core:window:allow-unminimize",
@@ -22,11 +26,27 @@
     {
       "identifier": "http:default",
       "allow": [
-        { "url": "https://api.bgm.tv/**" },
-        { "url": "https://cdn.jsdelivr.net/**" },
-        { "url": "https://unpkg.com/**" },
-        { "url": "https://bgmtimetable.com/**" }
+        {
+          "url": "https://api.bgm.tv/**"
+        },
+        {
+          "url": "https://cdn.jsdelivr.net/**"
+        },
+        {
+          "url": "https://unpkg.com/**"
+        },
+        {
+          "url": "https://bgmtimetable.com/**"
+        },
+        {
+          "url": "https://raw.githubusercontent.com/MASUKA2018/Bangumi_ClassTimeTable/main/public/data/**"
+        }
       ]
     }
+  ],
+  "platforms": [
+    "windows",
+    "macOS",
+    "linux"
   ]
 }

@@ -1,3 +1,4 @@
+import { exportTextFile } from './exportFile'
 import { displayName } from './i18n'
 import type { Show, Tracking } from '../types'
 import { nextEpisode, totalEps } from './schedule'
@@ -44,12 +45,6 @@ export function buildIcs(shows: Show[], tracking: Tracking, now: number): string
   return lines.join('\r\n')
 }
 
-export function downloadIcs(content: string) {
-  const blob = new Blob([content], { type: 'text/calendar;charset=utf-8' })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = 'bangumi-timetable.ics'
-  a.click()
-  URL.revokeObjectURL(url)
+export async function downloadIcs(content: string) {
+  await exportTextFile('bangumi-timetable.ics',content,'text/calendar')
 }

@@ -3,6 +3,7 @@ import type { RichReminderPayload, ReminderKind } from '../lib/notifications'
 import { isNativeApp } from '../lib/native'
 import { reminderPayloadKey, RICH_REMINDER_EVENT, REMINDER_ACTION_EVENT } from '../lib/reminderWindow'
 import { setLang, t } from '../lib/i18n'
+import Cover from './Cover'
 
 const DEV_PREVIEW: RichReminderPayload = {
   kind: 'watching',
@@ -46,7 +47,6 @@ async function hidePopup() {
 export default function ReminderPopup({ kind }: { kind: ReminderKind }) {
   const [payload, setPayload] = useState<RichReminderPayload | null>(() => readPayload(kind))
   const [index, setIndex] = useState(0)
-  const [imageFailed, setImageFailed] = useState(false)
   const [hovered, setHovered] = useState(false)
   const [actionBusy, setActionBusy] = useState(false)
   const [actionError, setActionError] = useState(false)
@@ -85,14 +85,13 @@ export default function ReminderPopup({ kind }: { kind: ReminderKind }) {
       await hidePopup()
     } catch { setActionBusy(false); setActionError(true) }
   }
-  useEffect(() => setImageFailed(false), [item?.id])
 
   if (!payload) return null
   setLang(payload.lang)
   document.documentElement.setAttribute('data-theme', payload.theme)
   document.documentElement.dataset.reminder = 'true'
   return (
-    <div className="reminder-viewport">
+    <div className="reminder-viewport" style={{ transform: `scale(${payload.popupScale ?? .75})` }}>
       <main className={`reminder-popup ${payload.kind}`} onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}>
         <button className="reminder-close" onClick={hidePopup} aria-label={t('关闭')}>
           ×
@@ -105,11 +104,7 @@ export default function ReminderPopup({ kind }: { kind: ReminderKind }) {
         {item ? (
           <section className="reminder-card">
             <div className="reminder-cover-wrap">
-              {item.cover && !imageFailed ? (
-                <img className="reminder-cover" src={item.cover} alt="" onError={() => setImageFailed(true)} />
-              ) : (
-                <div className="reminder-cover placeholder">番组<br />课表</div>
-              )}
+              <Cover src={item.cover} className="reminder-cover" fallback={<>番组<br />课表</>} />
             </div>
             <div className="reminder-copy">
               <h1>{item.title}</h1>

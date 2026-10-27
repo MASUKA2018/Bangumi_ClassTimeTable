@@ -1,3 +1,4 @@
+import { exportTextFile } from './exportFile'
 import { nativePlatform } from './native'
 declare const __APP_VERSION__: string
 const KEY = 'btt:diagnostics:v1'
@@ -26,8 +27,6 @@ export function diagnosticReport(pending: number, conflicts: number) {
     summary: { pending: Math.max(0, Math.floor(pending)), conflicts: Math.max(0, Math.floor(conflicts)) },
     events: readDiagnostics() }
 }
-export function downloadJson(name: string, value: unknown) {
-  const url = URL.createObjectURL(new Blob([JSON.stringify(value, null, 2)], { type: 'application/json' }))
-  const a = document.createElement('a'); a.href = url; a.download = name; a.click()
-  setTimeout(() => URL.revokeObjectURL(url), 1000)
+export async function downloadJson(name: string, value: unknown) {
+  await exportTextFile(name,JSON.stringify(value,null,2),'application/json')
 }
