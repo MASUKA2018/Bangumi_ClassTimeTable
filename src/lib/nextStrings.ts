@@ -1,4 +1,6 @@
 export const NEXT_STRINGS: Record<string,[string,string,string]> = {
+  '更多功能':['更多功能','その他の機能','More actions'],
+  '搜索与时区':['搜尋與時區','検索とタイムゾーン','Search & time zone'],
   '当天更新的“在看”番剧使用系统通知提醒。':['當天更新的「在看」番劇使用系統通知提醒。','当日更新される視聴中の作品をシステム通知でお知らせします。','System notifications remind you about today’s updates to shows you are watching.'],
   '开启系统后台提醒后，已安排的通知可在应用进入后台后显示。':['開啟系統背景提醒後，已安排的通知可在應用程式進入背景後顯示。','バックグラウンド通知を有効にすると、アプリを離れても予約済み通知を表示できます。','With system background reminders enabled, scheduled notifications can appear while the app is in the background.'],
   '该季度暂未收录已公布的新番，请稍后更新放送数据。':['該季度暫未收錄已公布的新番，請稍後更新放送資料。','この四半期の予告はまだありません。後で放送データを更新してください。','No announced shows are available for this season yet. Refresh the schedule later.'],

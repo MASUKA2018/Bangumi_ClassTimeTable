@@ -8,17 +8,51 @@
 .feature-field input:not([type='checkbox']) { min-width:0; max-width:100%; padding:8px; color:var(--text); background:var(--card); border:1px solid var(--border); border-radius:6px; }
 .cover.ph { display:flex; align-items:center; justify-content:center; }
 .mobile-filter-select { display:none; }
+.header-actions { display:contents; }
+.mobile-menu-toggle, .mobile-tools-toggle { display:none; }
 @media(max-width:720px) {
-  .site-header { gap:8px; padding:10px 12px; }
-  .site-header h1 { width:100%; display:flex; align-items:center; justify-content:space-between; font-size:20px; }
+  .container { padding-top:calc(6px + env(safe-area-inset-top)); }
+  /* Android already keeps the WebView inside the system bars in MainActivity. */
+  html[data-platform='android'] .container { height:100%; padding:6px 8px 8px; }
+  .site-header { position:relative; flex:none; flex-wrap:nowrap; align-items:center; gap:8px; padding:0 0 6px; margin-bottom:6px; }
+  .site-header h1 { flex:1; min-width:0; display:flex; align-items:center; justify-content:space-between; gap:8px; font-size:18px; }
+  .site-title { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .site-header h1 .season-sel { margin:0; min-width:0; max-width:48vw; min-height:40px; }
   .site-header .domains { display:none; }
   .site-header .spacer { display:none; }
   .site-header .iconbtn { min-height:40px; }
-  .toolbar { gap:8px; padding:8px 12px; }
+  .mobile-menu-toggle { display:block; flex:none; width:40px; padding:4px; font-size:16px; border-radius:8px; }
+  .header-actions { display:none; }
+  .header-actions.mobile-open { display:grid; grid-template-columns:1fr 1fr; gap:8px; position:absolute; z-index:90; top:100%; right:0; width:min(320px,100%); max-height:calc(100dvh - 100px); overflow:auto; padding:12px; background:var(--card); border:1px solid var(--border); border-radius:10px; box-shadow:0 8px 24px #0003; }
+  .header-actions .season-sel { display:block; margin:0; width:100%; max-width:none; min-height:40px; }
+  .toolbar { position:relative; display:grid; grid-template-columns:auto minmax(0,1fr) auto auto; flex:none; align-items:center; gap:6px; padding:0; margin-bottom:6px; }
+  .toolbar > .feature-hint, .toolbar > .err { grid-column:1 / -1; margin:0; }
   .toolbar .quick-filter { display:none; }
-  .mobile-filter-select { display:block; color:var(--text); background:var(--card); border:1px solid var(--border); border-radius:7px; min-height:40px; padding:4px 8px; }
-  .toolbar .search { min-height:42px; flex-basis:100%; width:100%; }
+  .toolbar > .view-switch { grid-column:1; grid-row:1; }
+  .toolbar > .mobile-filter-select { grid-column:2; grid-row:1; }
+  .toolbar > .adv-wrap { position:static; grid-column:3; grid-row:1; }
+  .toolbar .filter-pop { left:0; right:0; width:100%; max-height:calc(100dvh - 150px); overflow:auto; }
+  .toolbar > .mobile-tools-toggle { grid-column:4; grid-row:1; }
+  .toolbar .view-switch button { padding-inline:10px; }
+  .toolbar .adv-wrap > .chip { padding-inline:8px; white-space:nowrap; }
+  .mobile-filter-select { display:block; min-width:0; width:100%; color:var(--text); background:var(--card); border:1px solid var(--border); border-radius:7px; min-height:40px; padding:4px 6px; }
+  .mobile-tools-toggle { display:block; position:relative; width:40px; min-height:40px; padding:0; border-radius:8px; }
+  .mobile-tools-toggle > span:first-child { font-size:24px; line-height:1; }
+  .mobile-tools-toggle.on { color:var(--pink-strong); border-color:var(--pink); }
+  .search-active-dot { position:absolute; top:5px; right:5px; width:5px; height:5px; border-radius:50%; background:var(--pink-strong); }
+  .toolbar > .toolbar-extra { display:none; }
+  .toolbar.mobile-tools-open > .toolbar-extra { display:flex; grid-column:1 / -1; }
+  .toolbar .search { min-height:40px; width:100%; }
+  .toolbar #schedule-timezone { justify-self:start; }
   .chip,.seg button,.feature-section button,.pending-actions button { min-height:40px; }
+  .month-nav { display:grid; grid-template-columns:auto minmax(0,1fr) auto; gap:6px; min-width:0; min-height:44px; padding:0 0 4px; --nav-h:44px; }
+  .month-nav > .iconbtn { min-width:52px; min-height:40px; padding:4px 8px; white-space:nowrap; }
+  .month-nav .m-title { width:auto; min-width:0; font-size:calc(13px * var(--font-scale)); white-space:normal; line-height:1.3; }
+  .month-nav .reset-slot { grid-column:1 / -1; width:auto; justify-content:center; }
+  .month-nav .reset-slot:empty { display:none; }
+  /* The date is already in the navigation; keep the single-day grid for shows. */
+  .day-grid > .wg-corner, .day-grid > .wg-dayhead { display:none; }
+  .day-axis .day-grid { grid-template-columns:46px minmax(0,1fr); }
   .overlay { padding:max(8px,env(safe-area-inset-top)) max(8px,env(safe-area-inset-right)) max(8px,env(safe-area-inset-bottom)) max(8px,env(safe-area-inset-left)); }
   .modal { max-height:calc(100dvh - 16px); max-width:100%; overflow-x:hidden; padding:18px 14px; }
   .modal .close { width:40px; height:40px; font-size:24px; }

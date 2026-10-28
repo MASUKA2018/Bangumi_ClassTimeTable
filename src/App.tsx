@@ -171,6 +171,11 @@ export default function App() {
   const [historyError, setHistoryError] = useState('')
   const [showPending, setShowPending] = useState(false)
   const [showReview, setShowReview] = useState(false)
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [mobileToolsOpen, setMobileToolsOpen] = useState(false)
+  const headerActionsRef = useRef<HTMLDivElement>(null)
+  const mobileMenuTriggerRef = useRef<HTMLButtonElement>(null)
+  const searchRef = useRef<HTMLInputElement>(null)
   const [androidCount, setAndroidCount] = useState(0)
   const [androidError, setAndroidError] = useState('')
   const [notificationRevision, setNotificationRevision] = useState(0)
@@ -1184,7 +1189,7 @@ export default function App() {
   // 键盘快捷键:←/→ 翻页,Home 回到今天/本周/本月,D/W/M 切视图
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (behindOpen || showSettings || showAbout || showPending || showReview || (!wide && openId !== null)) return
+      if (behindOpen || mobileMenuOpen || showSettings || showAbout || showPending || showReview || (!wide && openId !== null)) return
       const t = e.target as HTMLElement | null
       if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable))
         return
@@ -1225,20 +1230,22 @@ export default function App() {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [behindOpen, showSettings, showAbout, showPending, showReview, wide, openId, effView, archive, effMonthCursor, changeView, pageDay, pageWeek, pageMonthTo])
+  }, [behindOpen, mobileMenuOpen, showSettings, showAbout, showPending, showReview, wide, openId, effView, archive, effMonthCursor, changeView, pageDay, pageWeek, pageMonthTo])
 
   useEffect(()=>{
     const back=(event:Event)=>{
-      if(showSettings){event.preventDefault();setShowSettings(false)}
+      if(mobileMenuOpen){event.preventDefault();setMobileMenuOpen(false);mobileMenuTriggerRef.current?.focus()}
+      else if(showSettings){event.preventDefault();setShowSettings(false)}
       else if(showReview){event.preventDefault();setShowReview(false)}
       else if(showPending){event.preventDefault();setShowPending(false)}
       else if(showAbout){event.preventDefault();setShowAbout(false)}
       else if(openId!==null){event.preventDefault();setOpenId(null)}
       else if(advOpen){event.preventDefault();setAdvOpen(false)}
+      else if(mobileToolsOpen){event.preventDefault();setMobileToolsOpen(false);searchRef.current?.blur()}
     }
     window.addEventListener('btt-back',back)
     return ()=>window.removeEventListener('btt-back',back)
-  },[showSettings,showReview,showPending,showAbout,openId,advOpen])
+  },[mobileMenuOpen,mobileToolsOpen,showSettings,showReview,showPending,showAbout,openId,advOpen])
   useEffect(()=>{
     if(!isAndroidApp())return
     let alive=true,dispose:(()=>void)|undefined
@@ -1261,11 +1268,26 @@ export default function App() {
   const panelW = effView === 'day' ? settings.panelWidthDay : settings.panelWidth
   const viewProps = { tracking, settings, now, seasonStart, archive, friendsMap, onOpen: openDetail }
 
+  useEffect(() => {
+    if (!mobileMenuOpen) return
+    const outside = (event: PointerEvent) => {
+      const node = event.target as Node
+      if (!headerActionsRef.current?.contains(node) && !mobileMenuTriggerRef.current?.contains(node)) setMobileMenuOpen(false)
+    }
+    const escape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') { setMobileMenuOpen(false); mobileMenuTriggerRef.current?.focus() }
+    }
+    document.addEventListener('pointerdown', outside)
+    document.addEventListener('keydown', escape)
+    return () => { document.removeEventListener('pointerdown', outside); document.removeEventListener('keydown', escape) }
+  }, [mobileMenuOpen])
+  useEffect(() => { if (mobileToolsOpen) searchRef.current?.focus() }, [mobileToolsOpen])
+
   return (
     <div className="container">
       <header className="site-header">
         <h1>
-          {t('番组课表')}
+          <span className="site-title">{t('番组课表')}</span>
           <select
             className="season-sel"
             value={seasonSel}
@@ -1351,6 +1373,10 @@ export default function App() {
             </a>
           ))}
         </span>
+        <button ref={mobileMenuTriggerRef} className="iconbtn mobile-menu-toggle" aria-label={t('更多功能')} aria-expanded={mobileMenuOpen} aria-controls="header-actions" onClick={() => { setMobileMenuOpen(v => !v); setAdvOpen(false) }}>•••</button>
+        <div ref={headerActionsRef} id="header-actions" className={`header-actions${mobileMenuOpen ? ' mobile-open' : ''}`} role="group" aria-label={t('更多功能')} onClick={event => {
+          if ((event.target as HTMLElement).closest('button')) { setMobileMenuOpen(false); mobileMenuTriggerRef.current?.focus() }
+        }}>
         <select
           className="season-sel theme-sel"
           title={t('色彩模式')}
@@ -1384,13 +1410,14 @@ export default function App() {
         <button className="iconbtn" onClick={() => setShowPending(true)}>{t('待看清单')}</button>
         <button className="iconbtn" onClick={() => setShowReview(true)}>{t('季度回顾')}</button>
         {updates.status === 'available' && <button className="iconbtn accent" onClick={() => setShowSettings(true)}>{t('发现新版本')}</button>}
+        </div>
       </header>
 
-      <div className="toolbar">
+      <div className={`toolbar${mobileToolsOpen ? ' mobile-tools-open' : ''}`}>
         {archive && seasonSel>season.yyyymm && baseShows?.length===0 && <span className="feature-hint">{t('该季度暂未收录已公布的新番，请稍后更新放送数据。')}</span>}
         {archive && seasonSel>season.yyyymm && <span className="feature-hint">{t('新番预告仅展示已公布的数据；放送时间与收录条目仍可能变化。')}</span>}
         {storageError && <span className="err" role="alert">{storageError}</span>}
-        <span className="seg">
+        <span className="seg view-switch">
           {(
             [
               ['day', '日'],
@@ -1512,9 +1539,13 @@ export default function App() {
           )}
         </span>
 
+        <button className={`iconbtn mobile-tools-toggle${mobileToolsOpen || query ? ' on' : ''}`} aria-label={t('搜索与时区')} aria-expanded={mobileToolsOpen} aria-controls="schedule-search schedule-timezone" onClick={() => { setMobileToolsOpen(v => !v); setAdvOpen(false) }}><span aria-hidden>⌕</span>{query && <span className="search-active-dot" aria-hidden />}</button>
         <input
+          ref={searchRef}
+          id="schedule-search"
           type="search"
-          className="search"
+          className="search toolbar-extra"
+          aria-label={t('搜索标题 / 标签…')}
           placeholder={t('搜索标题 / 标签…')}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
@@ -1522,7 +1553,7 @@ export default function App() {
 
         <span className="spacer" style={{ flex: 1 }} />
 
-        <span className="seg small" title={t('时区')}>
+        <span id="schedule-timezone" className="seg small toolbar-extra" title={t('时区')}>
           <button className={settings.tzMode === 'local' ? 'on' : ''} onClick={() => patchSettings({ tzMode: 'local' })}>
             {t('本地时间')}
           </button>

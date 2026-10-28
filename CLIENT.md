@@ -94,6 +94,12 @@ npm run desktop:build -- --bundles nsis
 
 ## Android
 
+### 0.6.1 手机布局修正
+
+手机顶栏只保留标题、季度和“更多功能”；设置、待看清单、季度回顾、关于、语言和主题在更多菜单中打开。日／周／月、追番状态和筛选保留一行，搜索与时区通过搜索按钮展开。日视图取消重复的日期表头，翻页日期和按钮可随窄屏调整。课表字号、封面大小与追番数据不因本次布局调整而缩小或重置。
+
+Android 的系统栏由原生窗口处理，页面不再重复添加安全区留白；网页和 PWA 继续使用自己的安全区。正式 APK 版本号为 0.6.1（601），沿用 0.6.0 的 Android 签名，可直接覆盖安装。
+
 ### 0.6 第一版（2026-10-28）
 
 Android 原生工程已纳入 `src-tauri/gen/android/`，与桌面端共用 React、课表、Bangumi 进度同步及备份格式。最低 Android 8（API 26），当前构建面向 ARM64，目标 API 36；系统 Android System WebView 应保持更新。Mac 可以直接开发和打包 APK，无需 Windows。Android Studio 是可选的图形开发环境，也可使用 JDK 21、Android SDK 命令行工具和 NDK 27.2.12479018 构建。
