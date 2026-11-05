@@ -21,7 +21,6 @@ const API = 'https://api.bgm.tv'
 const ACC_KEY = 'btt:bgm'
 const QUEUE_KEY = 'btt:bgm:queue'
 const CONFIRMED_KEY = 'btt:bgm:confirmed:v1'
-export const BGM_SYNC_INTERVAL = 5 * 60_000
 const PULL_TTL = 60_000
 let remoteRevision = 0
 /** 「看过」全量可达上千条,只拉到最早归档季(2024Q4)之前一点为止 */

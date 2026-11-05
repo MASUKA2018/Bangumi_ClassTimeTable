@@ -124,11 +124,11 @@ GitHub 侧栏的 Contributors 由提交记录自动统计，可能与这份分�
 | bangumi-data 数据集 | 精确放送时刻、周期、播放平台 | jsDelivr CDN,缓存 24h |
 | Bangumi API `/v0/subjects` | 集数、简介、热门标签 | 按需懒加载,缓存 7 天 |
 | Bangumi API `/v0/users/*/collections` | 好友公开进度 | 缓存 1h |
-| Bangumi API 收藏与章节读写(仅登录后) | 自己的追番与观看进度双向同步 | Bearer 认证;写回逐条慢速，个人进度缓存 1 分钟；运行中每 5 分钟及恢复窗口／联网时刷新 |
+| Bangumi API 收藏与章节读写(仅登录后) | 自己的追番与观看进度双向同步 | Bearer 认证;写回逐条慢速，修改停止 5 分钟后合并同步；每日所选整点检查或手动同步 |
 | [番組維基 bgm.wiki](https://bgm.wiki)(每集精确时刻) | `enhance.json` 的 `air.epDates` | 经其**开发者 API**(token 认证)每日 CI 同步,数据由其编辑者社区维护,特此致谢 |
 | yuc.wiki(可选增强:标签/PV/改编来源) | `public/data/enhance.json` | **不自动抓取**,由 `/refresh-data` skill 人工触发,页面由人手动保存 |
 
-所有远端响应均本地缓存,正常使用一天只产生个位数 API 请求。
+公共资料尽量本地缓存；个人同步每轮包含收藏分页与逐部章节核对，请求数随收藏数量增加，并非固定每天个位数。
 **不写、不跑任何针对 yuc.wiki 或 bgm.tv 网页的定时/批量爬虫。**
 
 ## 网页部署已停用

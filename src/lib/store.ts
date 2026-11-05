@@ -56,6 +56,7 @@ export const DEFAULT_SETTINGS: Settings = {
   density: 'standard',
   fontScale: 100,
   coverSize: 'medium',
+  bgmSyncHour: 20,
   autoCheckUpdates: true,
   backupEnabled: true,
   otherReminderScope: 'all',
@@ -86,6 +87,7 @@ export function normalizeSettings(raw: unknown): Settings {
       Object.assign(result, { [key]: value })
     }
   }
+  result.bgmSyncHour = Number.isInteger(result.bgmSyncHour) && result.bgmSyncHour >= -1 && result.bgmSyncHour <= 23 ? result.bgmSyncHour : 20
   result.theme = themeDefinition(result.theme).id
   result.reminderSize = ['small','medium','large'].includes(result.reminderSize) ? result.reminderSize : 'medium'
   result.reminderCorner = ['bottom-right','bottom-left','top-right','top-left'].includes(result.reminderCorner) ? result.reminderCorner : 'bottom-right'

@@ -1,6 +1,25 @@
 import { flushSync } from 'react-dom'
 
 let active = false
+let finishSlide: (() => void) | undefined
+
+/** Animate the timetable itself, including WebViews without View Transitions. */
+export function withPageSlide(update: () => void, direction: -1 | 1) {
+  finishSlide?.()
+  const area = document.querySelector<HTMLElement>('.view-area')
+  if (!area?.animate || matchMedia('(prefers-reduced-motion: reduce)').matches) { update(); return }
+  let applied = false
+  let incoming: Animation | undefined
+  const outgoing = area.animate([{ transform: 'translateX(0)', opacity: 1 }, { transform: `translateX(${-direction * 32}px)`, opacity: 0 }], { duration: 100, easing: 'ease-in', fill: 'forwards' })
+  const apply = () => { if (!applied) { applied = true; flushSync(update) } }
+  const finish = () => { outgoing.cancel(); incoming?.cancel(); apply(); if (finishSlide === finish) finishSlide = undefined }
+  finishSlide = finish
+  outgoing.finished.then(() => {
+    apply(); outgoing.cancel()
+    incoming = area.animate([{ transform: `translateX(${direction * 48}px)`, opacity: 0 }, { transform: 'translateX(0)', opacity: 1 }], { duration: 220, easing: 'cubic-bezier(.2,.7,.2,1)' })
+    return incoming.finished
+  }).then(() => { if (finishSlide === finish) finishSlide = undefined }).catch(() => {})
+}
 
 /**
  * 视图/翻页切换用 View Transitions API 做真正的交叉淡化:

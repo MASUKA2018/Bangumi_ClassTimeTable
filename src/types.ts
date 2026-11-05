@@ -94,6 +94,7 @@ export interface Settings {
   density: 'compact' | 'standard' | 'large'
   fontScale: number
   coverSize: 'small' | 'medium' | 'large'
+  bgmSyncHour: number // -1: changes/manual only; 0–23: daily local hour
   autoCheckUpdates: boolean
   backupEnabled: boolean
   otherReminderScope: 'all' | 'wish'

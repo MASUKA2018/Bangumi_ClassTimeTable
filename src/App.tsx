@@ -25,7 +25,7 @@ import ShowReminderSettings from './components/ShowReminderSettings'
 import { trayWatchRows, trayAdvance } from './lib/trayWatch'
 import { installBgmAutoSync } from './lib/bgmAutoSync'
 import { beginOauthLogin, completeOauthLogin, fetchOauthConf, refreshIfNeeded, type OauthConf } from './lib/oauth'
-import { withViewTransition } from './lib/anim'
+import { withPageSlide, withViewTransition } from './lib/anim'
 import { displayName, LANGS, setLang, t, type Lang } from './lib/i18n'
 import AboutModal from './components/AboutModal'
 import { fetchBangumiData } from './lib/bangumiData'
@@ -38,6 +38,7 @@ import { buildIcs, downloadIcs } from './lib/ics'
 import { loadPersisted, savePersisted, type Persisted, type RegionClass } from './lib/store'
 import { createBackup } from './lib/backups'
 import { useAppearance } from './lib/appearance'
+import { useSwipePaging } from './lib/useSwipePaging'
 import { useAppUpdates } from './lib/updates'
 import { airedEps } from './lib/progress'
 import PendingPanel from './components/PendingPanel'
@@ -331,7 +332,7 @@ export default function App() {
           : t('已上传追番改动 {t}', { t: new Date().toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' }) }) + (result.error ? ` ${result.error}` : '') })
       if (result.nextRetryAt) {
         if (drainTimer.current) window.clearTimeout(drainTimer.current)
-        drainTimer.current = window.setTimeout(drainNow, Math.max(1500, result.nextRetryAt - Date.now()))
+        drainTimer.current = window.setTimeout(drainNow, Math.max(5 * 60_000, result.nextRetryAt - Date.now()))
       }
     } catch (e) {
       if (activeAccount && !isCurrentAccount(activeAccount)) return
@@ -342,9 +343,10 @@ export default function App() {
       setSyncState(s => ({ ...s, busy: syncingRef.current }))
     }
   }, [ensureFresh, isCurrentAccount, applyConfirmedProgress])
+  const syncAfterChangeRef = useRef<() => void>(() => {})
   const scheduleDrain = useCallback(() => {
     if (drainTimer.current) window.clearTimeout(drainTimer.current)
-    drainTimer.current = window.setTimeout(drainNow, 1500)
+    drainTimer.current = window.setTimeout(() => syncAfterChangeRef.current(), 5 * 60_000)
   }, [drainNow])
 
   const doSync = useCallback(async (force = false, retryUploads = false) => {
@@ -388,7 +390,7 @@ export default function App() {
       })
       if (after.nextRetryAt) {
         if (drainTimer.current) window.clearTimeout(drainTimer.current)
-        drainTimer.current = window.setTimeout(drainNow, Math.max(1500, after.nextRetryAt - Date.now()))
+        drainTimer.current = window.setTimeout(drainNow, Math.max(5 * 60_000, after.nextRetryAt - Date.now()))
       }
     } catch (e) {
       recordDiagnostic('sync', 'sync', 'error', undefined, e)
@@ -405,15 +407,17 @@ export default function App() {
     }
   }, [ensureFresh, isCurrentAccount, applyConfirmedProgress, drainNow, commitTracking])
 
+  syncAfterChangeRef.current = () => { void doSync(true, false) }
   useEffect(() => {
-    if (!account?.token || account.invalid) return
-    const triggers = installBgmAutoSync(retry => doSync(true, retry))
+    if (!account?.token || account.invalid || syncPaused) return
+    if (queuedIds().size) scheduleDrain()
+    const triggers = installBgmAutoSync(retry => doSync(true, retry), { hour: settings.bgmSyncHour, key: account.username, initial: !account.mergedOnce })
     let alive = true, unlisten: (() => void) | undefined
     if (isNativeApp()) import('@tauri-apps/api/window')
       .then(({ getCurrentWindow }) => getCurrentWindow().onFocusChanged(event => { if (event.payload) triggers.refresh() }))
       .then(fn => { if (alive) unlisten = fn; else fn() }).catch(() => undefined)
     return () => { alive = false; triggers.dispose(); unlisten?.() }
-  }, [account?.token, account?.invalid, doSync])
+  }, [account?.token, account?.invalid, settings.bgmSyncHour, syncPaused, doSync, scheduleDrain])
 
   useEffect(() => () => { if (drainTimer.current) window.clearTimeout(drainTimer.current) }, [])
 
@@ -1186,6 +1190,21 @@ export default function App() {
   }, [archive, seasonSel, now, settings])
   const effMonthCursor = monthCursor ?? defaultMonth
 
+  const pageBy = useCallback((direction: -1 | 1) => {
+    withPageSlide(() => {
+      if (effView === 'day') setDayCursor(c => c + direction)
+      else if (effView === 'week') setWeekCursor(c => c + direction)
+      else {
+        const idx = effMonthCursor.y * 12 + (effMonthCursor.mo - 1) + direction
+        setMonthCursor({ y: Math.floor(idx / 12), mo: (idx % 12) + 1 })
+      }
+    }, direction)
+  }, [effView, effMonthCursor])
+  const swipePagingRef = useSwipePaging(pageBy,
+    !(behindOpen || mobileMenuOpen || advOpen || showSettings || showAbout || showPending || showReview || (!wide && openId !== null) || (archive && effView === 'week')),
+    `${seasonSel}:${effView}`,
+  )
+
   // 键盘快捷键:←/→ 翻页,Home 回到今天/本周/本月,D/W/M 切视图
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -1194,17 +1213,10 @@ export default function App() {
       if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable))
         return
       if (e.metaKey || e.ctrlKey || e.altKey) return
-      const pageMonth = (d: number) => {
-        const idx = effMonthCursor.y * 12 + (effMonthCursor.mo - 1) + d
-        pageMonthTo({ y: Math.floor(idx / 12), mo: (idx % 12) + 1 })
-      }
       switch (e.key) {
         case 'ArrowLeft':
         case 'ArrowRight': {
-          const d = e.key === 'ArrowLeft' ? -1 : 1
-          if (effView === 'day') withViewTransition(() => setDayCursor((c) => c + d))
-          else if (effView === 'week') withViewTransition(() => setWeekCursor((c) => c + d))
-          else pageMonth(d)
+          pageBy(e.key === 'ArrowLeft' ? -1 : 1)
           e.preventDefault()
           break
         }
@@ -1230,7 +1242,7 @@ export default function App() {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [behindOpen, mobileMenuOpen, showSettings, showAbout, showPending, showReview, wide, openId, effView, archive, effMonthCursor, changeView, pageDay, pageWeek, pageMonthTo])
+  }, [behindOpen, mobileMenuOpen, showSettings, showAbout, showPending, showReview, wide, openId, effView, archive, pageBy, changeView, pageDay, pageWeek, pageMonthTo])
 
   useEffect(()=>{
     const back=(event:Event)=>{
@@ -1373,7 +1385,14 @@ export default function App() {
             </a>
           ))}
         </span>
-        <button ref={mobileMenuTriggerRef} className="iconbtn mobile-menu-toggle" aria-label={t('更多功能')} aria-expanded={mobileMenuOpen} aria-controls="header-actions" onClick={() => { setMobileMenuOpen(v => !v); setAdvOpen(false) }}>•••</button>
+        {account && !account.invalid && <button className="iconbtn header-sync" disabled={syncState.busy} title={syncState.msg || t('立即同步')} aria-label={t('立即同步')} onClick={() => void resumeSync()}>{syncState.busy ? '…' : '↻'}</button>}
+        <button ref={mobileMenuTriggerRef} className="iconbtn mobile-menu-toggle" aria-label={t('更多功能')} aria-expanded={mobileMenuOpen} aria-controls="header-actions" onClick={() => { setMobileMenuOpen(v => !v); setAdvOpen(false) }}>
+          <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true" focusable="false">
+            <circle cx="4" cy="10" r="1.7" />
+            <circle cx="10" cy="10" r="1.7" />
+            <circle cx="16" cy="10" r="1.7" />
+          </svg>
+        </button>
         <div ref={headerActionsRef} id="header-actions" className={`header-actions${mobileMenuOpen ? ' mobile-open' : ''}`} role="group" aria-label={t('更多功能')} onClick={event => {
           if ((event.target as HTMLElement).closest('button')) { setMobileMenuOpen(false); mobileMenuTriggerRef.current?.focus() }
         }}>
@@ -1594,7 +1613,7 @@ export default function App() {
         </div>
       ) : (
         <div className={`content-row view-${effView}`}>
-          <div className="view-area">
+          <div className="view-area" ref={swipePagingRef}>
             {effView === 'week' && (
               <WeekView
                 key={seasonSel}

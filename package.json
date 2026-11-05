@@ -1,7 +1,7 @@
 {
   "name": "bangumi-timetable-app",
   "private": true,
-  "version": "0.6.1",
+  "version": "0.6.4",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -11,7 +11,7 @@
     "deploy": "npm run build && npx wrangler deploy",
     "desktop": "tauri dev",
     "desktop:build": "tauri build",
-    "desktop:icon": "tauri icon public/icon-512.png",
+    "desktop:icon": "tauri icon src-tauri/icon-manifest.json",
     "android:init": "tauri android init",
     "android": "tauri android dev",
     "android:build": "tauri android build --apk --target aarch64"

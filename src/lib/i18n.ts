@@ -33,6 +33,10 @@ export function detectLang(): Lang {
 
 // value = [繁中, 日本語, EN]
 const DICT: Record<string, [string, string, string]> = {
+  '立即同步': ['立即同步', '今すぐ同期', 'Sync now'],
+  '每日同步时间': ['每日同步時間', '毎日の同期時刻', 'Daily sync time'],
+  '仅修改后／手动同步': ['僅修改後／手動同步', '変更後／手動のみ', 'After changes / manual only'],
+  '修改停止 5 分钟后同步；切回窗口不会反复拉取。每日时间按设备本地时区计算，应用关闭时不会唤醒，错过后下次打开补一次。失败可手动重试。': ['修改停止 5 分鐘後同步；切回視窗不會反覆讀取。每日時間依裝置時區，關閉後不會喚醒，錯過後下次開啟補一次；失敗可手動重試。', '変更が止まって5分後に同期。毎日の時刻は端末の現地時間です。終了中は起動せず、次回起動時に一度確認します。失敗時は手動で再試行できます。', 'Syncs 5 minutes after the last change. Returning to the app does not repeatedly fetch. Daily time uses the device timezone; closed apps do not wake. Missed checks run once on return. Retry failures manually.'],
   ...FEATURE_STRINGS,
   ...NEXT_STRINGS,
   // ── 顶栏 / 工具栏 ──

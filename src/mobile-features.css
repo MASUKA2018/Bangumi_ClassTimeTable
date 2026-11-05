@@ -21,7 +21,8 @@
   .site-header .domains { display:none; }
   .site-header .spacer { display:none; }
   .site-header .iconbtn { min-height:40px; }
-  .mobile-menu-toggle { display:block; flex:none; width:40px; padding:4px; font-size:16px; border-radius:8px; }
+  .mobile-menu-toggle { display:grid; place-items:center; flex:none; width:40px; min-width:40px; height:40px; padding:0; line-height:1; border-radius:8px; }
+  .mobile-menu-toggle svg { display:block; width:20px; height:20px; fill:currentColor; pointer-events:none; }
   .header-actions { display:none; }
   .header-actions.mobile-open { display:grid; grid-template-columns:1fr 1fr; gap:8px; position:absolute; z-index:90; top:100%; right:0; width:min(320px,100%); max-height:calc(100dvh - 100px); overflow:auto; padding:12px; background:var(--card); border:1px solid var(--border); border-radius:10px; box-shadow:0 8px 24px #0003; }
   .header-actions .season-sel { display:block; margin:0; width:100%; max-width:none; min-height:40px; }
@@ -63,3 +64,6 @@
   .pending-tools { flex-wrap:wrap; }
   .pending-tools input { min-height:42px; max-width:100%; }
 }
+
+.header-sync { flex:none; min-width:36px; }
+@media(max-width:720px) { .header-sync { width:36px; padding:0; } }

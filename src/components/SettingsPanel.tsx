@@ -175,13 +175,14 @@ export default function SettingsPanel({
               next.bgm.tv/demo/access-token
             </a>{' '}
             {t(
-              '生成个人令牌(建议选一年有效期)粘贴连接。令牌只保存在本机浏览器,不进备份文件,可随时吊销。 连接后:应用内的追番改动写回 bgm.tv;云端改动每 5 分钟检查，并在切回窗口或恢复联网时刷新。 首次连接会双向合并(状态本机优先、进度取较大值)。bgm 的「搁置」保留进度并暂停提醒; 本地取消追番不会删除 bgm 收藏。',
+              '生成个人令牌(建议选一年有效期)粘贴连接。令牌只保存在本机浏览器,不进备份文件,可随时吊销。 连接后:应用内的追番改动写回 bgm.tv;本机修改停止 5 分钟后同步，云端按所选每日时间检查，也可手动同步。 首次连接会双向合并(状态本机优先、进度取较大值)。bgm 的「搁置」保留进度并暂停提醒; 本地取消追番不会删除 bgm 收藏。',
             )}
           </div>
         )}
         <div className="set-sub">{t('支持“搁置”状态，保留进度并暂停提醒。')}</div>
-        <div className="set-sub">{t('两台设备连接同一个 Bangumi 账号即可同步观看进度。启动、切回窗口及恢复联网时刷新，运行中每 5 分钟检查；不是实时推送。')}</div>
+        <div className="set-sub">{t('修改停止 5 分钟后同步；切回窗口不会反复拉取。每日时间按设备本地时区计算，应用关闭时不会唤醒，错过后下次打开补一次。失败可手动重试。')}</div>
 
+        <label className="set-row"><span className="lbl">{t('每日同步时间')}</span><select aria-label={t('每日同步时间')} value={settings.bgmSyncHour} onChange={e => onChange({ bgmSyncHour: Number(e.target.value) })}><option value={-1}>{t('仅修改后／手动同步')}</option>{Array.from({ length: 24 }, (_, hour) => <option key={hour} value={hour}>{String(hour).padStart(2, '0')}:00</option>)}</select></label>
         <div className="set-row theme-setting">
           <span className="lbl">{t('主题')}</span>
           <span className="theme-grid">
