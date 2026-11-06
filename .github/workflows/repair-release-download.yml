@@ -1,0 +1,102 @@
+name: Repair release download route
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/repair-release-download.yml']
+
+permissions:
+  contents: write
+
+concurrency:
+  group: repair-client-v0.6.4-download
+  cancel-in-progress: false
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify package and replace update manifest, retaining backups
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          python3 - <<'PY'
+          import os, json, urllib.request, urllib.parse, hashlib
+
+          repo = os.environ['REPO']
+          assert repo == 'MASUKA2018/Bangumi_ClassTimeTable'
+          api = 'https://api.github.com/repos/' + repo
+          tag = 'client-v0.6.4'
+          token = os.environ['GH_TOKEN']
+          run = os.environ['RUN_ID']
+
+          def request(url, method='GET', data=None, authenticated=False, mime='application/json'):
+              headers = {'User-Agent': 'Bangumi-Release-Repair', 'Accept': 'application/vnd.github+json'}
+              if authenticated:
+                  assert urllib.parse.urlsplit(url).hostname in ['api.github.com', 'uploads.github.com']
+                  headers['Authorization'] = 'Bearer ' + token
+              if data is not None:
+                  headers['Content-Type'] = mime
+              req = urllib.request.Request(url, data=data, method=method, headers=headers)
+              with urllib.request.urlopen(req, timeout=90) as response:
+                  return response.read()
+
+          def patch(asset_id, name):
+              return json.loads(request(api + '/releases/assets/' + str(asset_id), 'PATCH',
+                  json.dumps({'name': name}).encode(), authenticated=True))
+
+          release = json.loads(request(api + '/releases/tags/' + tag, authenticated=True))
+          assert not release['draft'] and not release['prerelease']
+          assets = {a['name']: a for a in release['assets']}
+          original = request(assets['latest.json']['browser_download_url'])
+          manifest = json.loads(original)
+          assert manifest['version'] == '0.6.4'
+          entry = manifest['platforms']['darwin-aarch64']
+          parsed = urllib.parse.urlsplit(entry['url'])
+          assert parsed.scheme == 'https' and parsed.netloc == 'github.com'
+          assert parsed.path.startswith('/' + repo + '/releases/download/' + tag + '/')
+          query = dict(urllib.parse.parse_qsl(parsed.query))
+          query['download'] = '1'
+          entry['url'] = urllib.parse.urlunsplit(parsed._replace(query=urllib.parse.urlencode(query)))
+          sums = request(assets['SHA256SUMS.txt']['browser_download_url']).decode()
+          hashes = dict((line.split(None, 1)[1].strip(), line.split(None, 1)[0])
+              for line in sums.splitlines() if line.strip())
+          package_name = parsed.path.rsplit('/', 1)[1]
+          package = request(entry['url'])
+          assert hashlib.sha256(package).hexdigest() == hashes[package_name], 'Package hash mismatch'
+          print('Verified complete signed Mac package:', len(package), 'bytes')
+          if manifest == json.loads(original):
+              print('Download route already repaired; no change needed.')
+              raise SystemExit(0)
+
+          payload = (json.dumps(manifest, ensure_ascii=False, indent=2) + '\n').encode()
+          hashes['latest.json'] = hashlib.sha256(payload).hexdigest()
+          updated_sums = ''.join(value + '  ' + name + '\n' for name, value in hashes.items()).encode()
+          upload_root = release['upload_url'].split('{')[0]
+          replacements = []
+          # Upload both new files before renaming the live assets. Never delete the old files.
+          for name, body in [('latest.json', payload), ('SHA256SUMS.txt', updated_sums)]:
+              temp = 'repair-' + run + '-' + name
+              uploaded = json.loads(request(upload_root + '?name=' + urllib.parse.quote(temp),
+                  'POST', body, authenticated=True, mime='application/octet-stream'))
+              replacements.append((name, assets[name]['id'], uploaded['id']))
+          completed = []
+          try:
+              for name, old_id, new_id in replacements:
+                  patch(old_id, 'before-download-repair-' + run + '-' + name)
+                  try:
+                      patch(new_id, name)
+                  except Exception:
+                      patch(old_id, name)
+                      raise
+                  completed.append((name, old_id, new_id))
+          except Exception:
+              for name, old_id, new_id in reversed(completed):
+                  patch(new_id, 'repair-' + run + '-' + name)
+                  patch(old_id, name)
+              raise
+          print('Published repaired latest.json and SHA256SUMS.txt; originals retained as backups.')
+          PY
