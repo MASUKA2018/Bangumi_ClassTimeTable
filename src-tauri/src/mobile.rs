@@ -63,3 +63,16 @@ pub async fn android_launch_subject(window: tauri::WebviewWindow) -> Result<Opti
         .run_mobile_plugin("consumeLaunch", ())
         .map_err(|_| "无法读取启动通知".into())
 }
+
+#[tauri::command]
+pub async fn android_check_update(window: tauri::WebviewWindow) -> Result<Option<serde_json::Value>, String> {
+    if window.label() != "main" { return Err("只能从主窗口检查更新".into()); }
+    window.state::<MobileTools>().0.run_mobile_plugin("checkUpdate", ())
+        .map_err(|e| e.to_string())
+}
+#[tauri::command]
+pub async fn android_install_update(window: tauri::WebviewWindow, expected_version: String) -> Result<String, String> {
+    if window.label() != "main" { return Err("只能从主窗口安装更新".into()); }
+    window.state::<MobileTools>().0.run_mobile_plugin("installUpdate", serde_json::json!({"expectedVersion": expected_version}))
+        .map_err(|e| e.to_string())
+}

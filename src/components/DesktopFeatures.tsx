@@ -4,8 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { Settings } from '../types'
 import { backupDiff, backupDocument, listBackups, mergeBackup, parseBackup, readBackup, type BackupFile } from '../lib/backups'
 import { loadPersisted, type Persisted } from '../lib/store'
-import { isDesktopNativeApp } from '../lib/native'
-import { RELEASES_URL, type AppUpdates } from '../lib/updates'
+import { RELEASES_URL, supportsAppUpdates, type AppUpdates } from '../lib/updates'
 import { t } from '../lib/i18n'
 import { confirmAction } from '../lib/confirm'
 declare const __APP_VERSION__: string
@@ -55,13 +54,13 @@ export default function DesktopFeatures({ settings, onChange, updates, onRefresh
       <p className="feature-hint">{t(isAndroidApp() ? '开启系统后台提醒后，已安排的通知可在应用进入后台后显示。' : '鼠标悬停时暂停关闭。程序需保持运行；错过超过 5 分钟的逐集提醒不会集中补发。')}</p>
     </section>
     <section className="feature-section"><h3>{t('更新中心')}</h3>
-      <div className="feature-field"><span>{t('程序版本')} {__APP_VERSION__}</span><button className="iconbtn" disabled={!isDesktopNativeApp() || ['checking','installing'].includes(updates.status)} onClick={updates.check}>{t(updates.status === 'checking' ? '正在检查…' : '检查新版本')}</button><a href={RELEASES_URL} target="_blank" rel="noreferrer">{t('下载页面')}</a></div>
+      <div className="feature-field"><span>{t('程序版本')} {__APP_VERSION__}</span><button className="iconbtn" disabled={!supportsAppUpdates() || ['checking','installing'].includes(updates.status)} onClick={updates.check}>{t(updates.status === 'checking' ? '正在检查…' : '检查新版本')}</button><a href={RELEASES_URL} target="_blank" rel="noreferrer">{t('下载页面')}</a></div>
       <label className="feature-field"><span>{t('启动后检查版本（不自动安装）')}</span><input type="checkbox" checked={settings.autoCheckUpdates} onChange={e => onChange({ autoCheckUpdates: e.target.checked })} /></label>
       {updates.checkedAt && <p className="feature-hint">{t('最近检查：{time}', { time: new Date(updates.checkedAt).toLocaleString() })}</p>}
       {updates.status === 'current' && <p role="status">{t('已是最新版本。')}</p>}
-      {updates.update && <div className="update-result"><b>{t('发现新版本')} {updates.update.version}</b><p className="release-notes">{updates.update.body}</p><button className="iconbtn accent" disabled={['checking','installing'].includes(updates.status)} onClick={updates.install}>{t(updates.status === 'installing' ? '正在备份并安装…' : '确认安装并重启')}{updates.progress !== null && updates.status === 'installing' ? ` ${updates.progress}%` : ''}</button></div>}
+      {updates.update && <div className="update-result"><b>{t('发现新版本')} {updates.update.version}</b><p className="release-notes">{updates.update.body}</p><button className="iconbtn accent" disabled={['checking','installing'].includes(updates.status)} onClick={updates.install}>{t(updates.status === 'installing' ? '正在备份并安装…' : isAndroidApp() ? '下载并安装更新' : '确认安装并重启')}{updates.progress !== null && updates.status === 'installing' ? ` ${updates.progress}%` : ''}</button></div>}
       {updates.status === 'error' && <p className="err" role="alert">{t('检查或安装更新失败：{error}', { error: updates.error })}</p>}
-      <p role="status" className="feature-hint">{t(({ backup: '正在保存更新前备份', checking: '正在重新核对版本', downloading: '正在下载更新', verifying: '正在校验签名', installing: '正在安装更新', restarting: '正在重启应用', cancelled: '已取消更新' } as Record<string,string>)[updates.stage] ?? '')}</p>
+      <p role="status" className="feature-hint">{t(({ backup: '正在保存更新前备份', checking: '正在重新核对版本', downloading: '正在下载更新', verifying: '正在校验签名', installing: '正在安装更新', restarting: '正在重启应用', cancelled: '已取消更新', permission: '请允许本应用安装更新，返回后再次点击下载并安装更新。', 'installer-opened': '已打开系统安装界面，请确认安装；若取消可再次点击重试。' } as Record<string,string>)[updates.stage] ?? '')}</p>
       {updates.status === 'error' && <p><button className="iconbtn" onClick={updates.install}>{t('重试安装')}</button> <a href={RELEASES_URL} target="_blank" rel="noreferrer">{t('手动下载安装包')}</a></p>}
       <div className="feature-field"><span>{t('放送数据')} · {t(dataSource || '正在读取…')}</span><button className="iconbtn" disabled={dataBusy} onClick={() => void onRefreshData()}>{t(dataBusy ? '正在刷新…' : '立即更新放送数据')}</button></div>
       {dataMessage && <p className="feature-hint" role="status">{dataMessage}</p>}

@@ -3,9 +3,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useAppUpdates } from './updates'
 import { confirmAction } from './confirm'
 import { createBackup } from './backups'
+import { nativePlatform } from './native'
 import { invoke } from '@tauri-apps/api/core'
 import { mockStorage } from './testStorage'
-vi.mock('./native', () => ({ isDesktopNativeApp: () => true, nativePlatform: () => 'macos' }))
+vi.mock('./native', () => ({ isDesktopNativeApp: () => true, isNativeApp: () => true, nativePlatform: vi.fn(() => 'macos') }))
 vi.mock('./confirm', () => ({ confirmAction: vi.fn() }))
 vi.mock('./backups', () => ({ createBackup: vi.fn() }))
 vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }))
@@ -14,7 +15,7 @@ vi.mock('@tauri-apps/api/event', () => ({ listen: vi.fn(async (name: string, cal
 let api: ReturnType<typeof useAppUpdates>, renderer: ReactTestRenderer
 function Harness() { api = useAppUpdates(false); return null }
 beforeEach(async () => {
-  mockStorage(); callbacks.clear()
+  mockStorage(); callbacks.clear(); vi.mocked(nativePlatform).mockReturnValue('macos')
   vi.mocked(confirmAction).mockReset().mockResolvedValue(true)
   vi.mocked(createBackup).mockReset().mockResolvedValue(undefined)
   vi.mocked(invoke).mockReset().mockImplementation(async command => command === 'check_app_update' ? { version: '0.5.0', body: 'test' } : undefined)
@@ -70,5 +71,25 @@ describe('Mac/Windows update workflow', () => {
     await act(async () => { const first = api.install(); await api.install(); accept(true); await first })
     expect(confirmAction).toHaveBeenCalledTimes(1)
     expect(createBackup).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('Android update workflow', () => {
+  it.each(['permission-required', 'installer-opened'])('returns to a retryable state after %s without claiming installation success', async result => {
+    vi.mocked(nativePlatform).mockReturnValue('android')
+    vi.mocked(invoke).mockImplementation(async command => command === 'android_check_update' ? { version: '0.6.7', body: 'Android release' } : result)
+    await act(async () => { await api.check() })
+    await act(async () => { await api.install() })
+    expect(invoke).toHaveBeenCalledWith('android_install_update', { expectedVersion: '0.6.7' })
+    expect(invoke).not.toHaveBeenCalledWith('install_app_update', expect.anything())
+    expect(api.status).toBe('available')
+    expect(api.stage).toBe(result === 'permission-required' ? 'permission' : 'installer-opened')
+    expect(createBackup).toHaveBeenCalledTimes(1)
+  })
+  it('keeps the version available for retry after a corrupt package or download failure', async () => {
+    vi.mocked(nativePlatform).mockReturnValue('android')
+    vi.mocked(invoke).mockRejectedValueOnce(new Error('安装包校验失败'))
+    await act(async () => { await api.install() })
+    expect(api.status).toBe('error'); expect(api.update).not.toBeNull()
   })
 })

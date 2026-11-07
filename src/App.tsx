@@ -45,7 +45,7 @@ import PendingPanel from './components/PendingPanel'
 import DesktopFeatures from './components/DesktopFeatures'
 import NextFeatures from './components/NextFeatures'
 import QuarterReviewPanel from './components/QuarterReviewPanel'
-import { cachedData, cacheData } from './lib/dataCache'
+import { cachedData, cacheData, cachedShows } from './lib/dataCache'
 import { recordReminder } from './lib/reminderHistory'
 import { isAndroidApp, planAndroidReminders, scheduleAndroidReminders } from './lib/androidReminders'
 import {
@@ -162,9 +162,9 @@ export default function App() {
   const [tracking, setTracking] = useState<Tracking>(init.current.tracking)
   const [overrides, setOverrides] = useState<Record<number, AirFix>>(init.current.overrides)
 
-  const [shows, setShows] = useState<Show[] | null>(null)
+  const [shows, setShows] = useState<Show[] | null>(cachedShows)
   const [scheduleDataAt, setScheduleDataAt] = useState<string | undefined>()
-  const [dataSource, setDataSource] = useState('')
+  const [dataSource, setDataSource] = useState(() => shows ? '本机缓存' : '')
   const [dataBusy, setDataBusy] = useState(false)
   const [dataMessage, setDataMessage] = useState('')
   const [backupError, setBackupError] = useState('')

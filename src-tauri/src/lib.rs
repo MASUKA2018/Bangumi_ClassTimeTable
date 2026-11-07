@@ -206,7 +206,9 @@ pub fn run() {
             preferences::preferences_request,
             mobile::android_export_text,
             mobile::android_reminder_settings,
-            mobile::android_launch_subject
+            mobile::android_launch_subject,
+            mobile::android_check_update,
+            mobile::android_install_update
         ]);
     }
     #[cfg(all(mobile, not(target_os = "android")))]

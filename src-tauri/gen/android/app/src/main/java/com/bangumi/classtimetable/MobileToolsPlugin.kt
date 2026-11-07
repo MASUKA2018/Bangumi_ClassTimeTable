@@ -21,8 +21,15 @@ class ExportTextArgs {
     lateinit var text: String
     lateinit var mime: String
 }
+@InvokeArg
+class InstallUpdateArgs { lateinit var expectedVersion: String }
 @TauriPlugin
 class MobileToolsPlugin(private val activity: Activity) : Plugin(activity) {
+    private val updater = AndroidUpdater(activity)
+    @Command
+    fun checkUpdate(invoke: Invoke) = updater.check(invoke)
+    @Command
+    fun installUpdate(invoke: Invoke) = updater.install(invoke, invoke.parseArgs(InstallUpdateArgs::class.java).expectedVersion)
     @Command
     fun consumeLaunch(invoke: Invoke) {
         val raw = activity.intent?.getStringExtra(NOTIFICATION_OBJ_INTENT_KEY)
