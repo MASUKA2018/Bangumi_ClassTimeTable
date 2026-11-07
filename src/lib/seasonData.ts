@@ -52,7 +52,7 @@ export function normalizeSeasonPack(raw: unknown): { shows: Show[] } {
     const at = (v: unknown) => typeof v === 'number' && Number.isFinite(v) ? v : typeof v === 'string' && Number.isFinite(Date.parse(v)) ? Date.parse(v) : undefined
     return { id: s.id, nameCn: s.nameCn || s.nameJp, nameJp: s.nameJp,
       image: normalizeBgmImageUrl(typeof s.image === 'string' ? s.image : undefined), score: s.score, rank: s.rank, ratingTotal: s.ratingTotal,
-      airWeekdayJst: s.airWeekdayJst, begin: at(s.begin), timePending: s.timePending === true || (typeof s.begin === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s.begin)), end: at(s.end), periodDays: s.periodDays > 0 ? s.periodDays : 7,
+      airWeekdayJst: s.airWeekdayJst, begin: at(s.begin), timePending: s.timePending === true || (typeof s.begin === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s.begin)), end: at(s.end), periodDays: Number.isFinite(s.periodDays) && s.periodDays >= 0 ? s.periodDays : 7,
       epsTotal: s.epsTotal, officialSite: s.officialSite, sites: Array.isArray(s.sites) ? s.sites : [],
       fromCalendar: s.fromCalendar ?? !s.streaming, tags: s.tags, pvUrl: s.pvUrl ?? s.pv, sourceType: s.sourceType, airFix: s.airFix ?? s.air }
   }) }

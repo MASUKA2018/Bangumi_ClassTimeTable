@@ -13,7 +13,19 @@ export interface Occurrence {
   t: number
 }
 
-const periodMs = (s: Show) => s.periodDays * DAY_MS
+// Remote data and old caches can contain P0D (a one-off/batch release).
+// Never divide by that period, or let an untrusted range grow without a bound.
+const MAX_RANGE_EPISODES = 10_000
+const episodeNumber = (n: number | undefined): n is number => typeof n === 'number' && Number.isSafeInteger(n) && n > 0
+const periodMs = (s: Show) => Number.isFinite(s.periodDays) && s.periodDays >= 0
+  ? s.periodDays * DAY_MS : NaN
+const finiteTime = (t: number): number | null => Number.isFinite(t) ? t : null
+
+function eachEpisode(lo: number, hi: number, visit: (ep: number) => void): void {
+  if (!episodeNumber(lo) || !episodeNumber(hi) || hi < lo) return
+  const end = Math.min(hi, lo + MAX_RANGE_EPISODES - 1)
+  for (let ep = lo; ep <= end; ep++) visit(ep)
+}
 
 /**
  * 线性推导的相位对齐:begin 定集数,broadcast 锚点定"周几几点"。
@@ -22,8 +34,9 @@ const periodMs = (s: Show) => s.periodDays * DAY_MS
  */
 function alignPhase(t: number, s: Show): number {
   const a = s.broadcastAt
-  if (a === undefined) return t
+  if (a === undefined || !Number.isFinite(a)) return t
   const pm = periodMs(s)
+  if (!(pm > 0) || !Number.isFinite(pm)) return t
   const d = (((a - t) % pm) + pm) % pm // 0..pm
   return d <= pm / 2 ? t + d : t + d - pm
 }
@@ -36,26 +49,35 @@ const parseAt = (iso: string | undefined): number | null => {
 
 /** 总集数(校正优先) */
 export function totalEps(s: Show): number | undefined {
-  return s.airFix?.eps ?? s.epsTotal
+  return episodeNumber(s.airFix?.eps) ? s.airFix.eps : episodeNumber(s.epsTotal) ? s.epsTotal : undefined
 }
 
 /** 整批先行的放出时刻(有 advanceEps 时) */
 function advanceAt(s: Show): number | null {
-  if (!s.airFix?.advanceEps) return null
-  return parseAt(s.airFix.advanceAt) ?? s.begin ?? null
+  if (!episodeNumber(s.airFix?.advanceEps)) return null
+  return parseAt(s.airFix.advanceAt) ?? (s.begin === undefined ? null : finiteTime(s.begin))
 }
 
 /** 第 ep 集的播出时刻;无法推导返回 null */
 export function epTime(s: Show, ep: number): number | null {
+  if (!episodeNumber(ep)) return null
   const exact = epDateOf(s, ep)
   if (exact !== null) return exact
   const f = s.airFix
-  if (f?.advanceEps && ep <= f.advanceEps) return advanceAt(s)
-  if (f?.anchorEp != null && ep >= f.anchorEp) {
+  if (episodeNumber(f?.advanceEps) && ep <= f.advanceEps) return advanceAt(s)
+  const pm = periodMs(s)
+  if (episodeNumber(f?.anchorEp) && ep >= f.anchorEp) {
     const at = parseAt(f.anchorAt)
-    if (at !== null) return at + (ep - f.anchorEp) * periodMs(s)
+    if (at !== null) {
+      if (ep === f.anchorEp) return at
+      if (pm === 0) return ep <= (totalEps(s) ?? f.anchorEp) ? at : null
+      return pm > 0 ? finiteTime(at + (ep - f.anchorEp) * pm) : null
+    }
   }
-  if (s.begin && !s.timePending) return alignPhase(s.begin + (ep - 1) * periodMs(s), s)
+  if (s.begin && !s.timePending) {
+    if (pm === 0) return ep <= (totalEps(s) ?? 1) ? finiteTime(s.begin) : null
+    if (pm > 0) return finiteTime(alignPhase(s.begin + (ep - 1) * pm, s))
+  }
   return null
 }
 
@@ -67,7 +89,7 @@ function epDateOf(s: Show, ep: number): number | null {
 
 function epDateKeys(s: Show): number[] {
   const m = s.airFix?.epDates
-  return m ? Object.keys(m).map(Number).filter((n) => Number.isFinite(n) && n > 0) : []
+  return m ? Object.keys(m).map(Number).filter(episodeNumber) : []
 }
 
 /**
@@ -87,8 +109,11 @@ export function airedCount(s: Show, now: number): number | undefined {
   // 扫描上限:总集数,否则取线性推导与各校正键的最大值加余量
   let cap = total ?? 0
   if (!cap) {
-    const linear = s.begin && now >= s.begin ? Math.floor((now - s.begin) / periodMs(s)) + 1 : 0
-    cap = Math.max(linear, f?.advanceEps ?? 0, f?.anchorEp ?? 0, keys.length ? Math.max(...keys) : 0) + 2
+    const pm = periodMs(s)
+    const linear = s.begin && now >= s.begin && pm > 0 && Number.isFinite(pm)
+      ? Math.floor((now - s.begin) / pm) + 1 : 1
+    cap = Math.max(linear, episodeNumber(f?.advanceEps) ? f.advanceEps : 0,
+      episodeNumber(f?.anchorEp) ? f.anchorEp : 0, keys.reduce((a, b) => Math.max(a, b), 0)) + 2
   }
   cap = Math.min(Math.max(cap, 1), 500)
 
@@ -112,12 +137,13 @@ export function nextEpisode(s: Show, now: number): Occurrence | null {
   // bangumi-data 标了完结且无人工校正 → 不再排未来集
   if (s.end && t > s.end && !s.airFix) return null
   let epEnd = ep
-  while ((!total || epEnd + 1 <= total) && epTime(s, epEnd + 1) === t) epEnd++
+  while (epEnd - ep + 1 < MAX_RANGE_EPISODES && (!total || epEnd + 1 <= total) && epTime(s, epEnd + 1) === t) epEnd++
   return { ep, epEnd, t }
 }
 
 /** [lo, hi] 时间窗内的所有放出,按时刻排序;同刻连续集合并为单条 */
 export function occurrencesBetween(s: Show, lo: number, hi: number): Occurrence[] {
+  if (!Number.isFinite(lo) || !Number.isFinite(hi) || hi < lo) return []
   const total = totalEps(s)
   const f = s.airFix
   const pm = periodMs(s)
@@ -134,40 +160,42 @@ export function occurrencesBetween(s: Show, lo: number, hi: number): Occurrence[
   }
 
   // 整批先行段
-  if (f?.advanceEps) {
+  if (episodeNumber(f?.advanceEps)) {
     const at = advanceAt(s)
     if (at !== null && at >= lo && at <= hi) {
-      for (let ep = 1; ep <= f.advanceEps; ep++) {
+      eachEpisode(1, Math.min(f.advanceEps, total ?? Infinity), ep => {
         if (!covered.has(ep)) raw.push({ ep, t: at })
-      }
+      })
     }
   }
 
   // 线性段(避开先行/锚点覆盖的集数区间)
-  if (s.begin && !s.timePending) {
-    const linLo = (f?.advanceEps ?? 0) + 1
-    const linHi = f?.anchorEp != null && parseAt(f.anchorAt) !== null ? f.anchorEp - 1 : Infinity
+  if (s.begin && !s.timePending && Number.isFinite(pm) && pm >= 0) {
+    const begin = s.begin
+    const linLo = (episodeNumber(f?.advanceEps) ? f.advanceEps : 0) + 1
+    const linHi = episodeNumber(f?.anchorEp) && parseAt(f.anchorAt) !== null ? f.anchorEp - 1 : Infinity
     // 前后各放宽一集:相位对齐(±半周期)可能把边缘集移入窗口,靠下面的窗口过滤收口
-    const e0 = Math.max(linLo, Math.ceil((lo - s.begin) / pm + 1) - 1)
-    const e1 = Math.min(linHi, Math.floor((hi - s.begin) / pm) + 2, total ?? Infinity)
-    for (let ep = e0; ep <= e1; ep++) {
-      if (covered.has(ep)) continue
-      const t = alignPhase(s.begin + (ep - 1) * pm, s)
-      if (s.end && t > s.end && !f) continue
-      if (t < lo || t > hi) continue // 相位平移可能移出窗口
+    const e0 = pm === 0 ? linLo : Math.max(linLo, Math.ceil((lo - s.begin) / pm + 1) - 1)
+    const e1 = Math.min(linHi, pm === 0 ? total ?? 1 : Math.floor((hi - s.begin) / pm) + 2, total ?? Infinity)
+    eachEpisode(e0, e1, ep => {
+      if (covered.has(ep)) return
+      const t = alignPhase(begin + (ep - 1) * pm, s)
+      if (s.end && t > s.end && !f) return
+      if (!Number.isFinite(t) || t < lo || t > hi) return // 相位平移可能移出窗口
       raw.push({ ep, t })
-    }
+    })
   }
 
   // 锚点周更段
-  if (f?.anchorEp != null) {
+  if (episodeNumber(f?.anchorEp) && Number.isFinite(pm) && pm >= 0) {
     const at = parseAt(f.anchorAt)
     if (at !== null) {
-      const e0 = Math.max(f.anchorEp, f.anchorEp + Math.ceil((lo - at) / pm))
-      const e1 = Math.min(f.anchorEp + Math.floor((hi - at) / pm), total ?? Infinity)
-      for (let ep = e0; ep <= e1; ep++) {
-        if (!covered.has(ep)) raw.push({ ep, t: at + (ep - f.anchorEp) * pm })
-      }
+      const e0 = pm === 0 ? f.anchorEp : Math.max(f.anchorEp, f.anchorEp + Math.ceil((lo - at) / pm))
+      const e1 = pm === 0 ? total ?? f.anchorEp : Math.min(f.anchorEp + Math.floor((hi - at) / pm), total ?? Infinity)
+      eachEpisode(e0, e1, ep => {
+        const t = at + (ep - f.anchorEp!) * pm
+        if (!covered.has(ep) && Number.isFinite(t) && t >= lo && t <= hi) raw.push({ ep, t })
+      })
     }
   }
 

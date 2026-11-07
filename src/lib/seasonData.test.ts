@@ -6,6 +6,9 @@ import { fetchSeasonList,fetchSeasonPack,normalizeSeasonPack,adjacentSeason } fr
 beforeEach(()=>{mockStorage();vi.mocked(remoteFetch).mockReset()})
 afterEach(()=>vi.unstubAllGlobals())
 describe('online quarter catalog and offline fallback',()=>{
+  it('preserves P0D one-off releases when reading seasonal archives',()=>{
+    expect(normalizeSeasonPack({shows:[{id:551304,nameJp:'Special',periodDays:0}]}).shows[0].periodDays).toBe(0)
+  })
   it('discovers a new quarter without replacing the installed application',async()=>{
     vi.mocked(remoteFetch).mockResolvedValue(new Response('{"seasons":["202610","202607"]}'))
     expect(await fetchSeasonList()).toEqual(['202610','202607'])
