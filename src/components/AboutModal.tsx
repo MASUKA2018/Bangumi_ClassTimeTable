@@ -12,6 +12,15 @@ interface LogEntry {
 
 const CHANGELOG: LogEntry[] = [
   {
+    d: '2026-11-27',
+    x: {
+      'zh-Hans': '桌面端 beta 0.6.7：基于最新 0.6.6 源码修正提醒卡片抢焦点的问题。创建、再次显示及两类卡片同时调整时均不接管键盘焦点；鼠标操作保持可用，只有“查看详情”才激活主窗口。保留新版的同步、缓存和提醒布局改进。',
+      'zh-Hant': '桌面端 beta 0.6.7：基於最新 0.6.6 原始碼修正提醒卡片搶焦點問題。建立、再次顯示及兩類卡片同時調整時均不接管鍵盤焦點；滑鼠操作仍可使用，只有「查看詳情」才啟用主視窗。保留新版的同步、快取和提醒版面改進。',
+      ja: 'デスクトップ beta 0.6.7：最新0.6.6ソースを基に通知カードがフォーカスを奪う問題を修正。作成・再表示・2種類のカードの再配置でキーボードフォーカスを取得しません。マウス操作と詳細表示は維持し、新しい同期・キャッシュ・通知レイアウトも保持。',
+      en: 'Desktop beta 0.6.7: fixes reminder focus stealing on the latest 0.6.6 source. Creating, re-showing and arranging both cards no longer takes keyboard focus. Mouse actions remain available; only View details activates the main window. Keeps the newer sync, cache and layout improvements.',
+    },
+  },
+  {
     d: '2026-10-19',
     x: {
       'zh-Hans': '桌面端 beta 0.5.0：更新改用原生确认框并显示下载、签名校验、安装与重启阶段；新增逐部同步明细、单部重试与冲突选择、30 天进度历史及单部恢复、单部提醒和免打扰、可预览的脱敏诊断、托盘今日待看及下一集操作。旧 Mac 版首次升级可能需手动替换应用。',

@@ -63,6 +63,8 @@ export async function showRichReminder(payload: RichReminderPayload): Promise<vo
 
   const sibling = await WebviewWindow.getByLabel(siblingLabel)
   const siblingVisible = sibling ? await sibling.isVisible() : false
+  // Resizing/repositioning an already visible sibling must not activate it either.
+  if (sibling && siblingVisible) await sibling.setFocusable(false)
   const preferred = ({ small: .6, medium: .75, large: .9 })[payload.popupSize ?? 'medium']
   const scale = Math.min(preferred, (monitor.workArea.size.width/monitor.scaleFactor-32)/720, (monitor.workArea.size.height/monitor.scaleFactor-44)/(333*2))
   const width = Math.round(720*scale), height = Math.round(333*scale)
@@ -96,13 +98,16 @@ export async function showRichReminder(payload: RichReminderPayload): Promise<vo
       maximizable: false,
       minimizable: false,
       focus: false,
-      focusable: true,
+      // Initial focus alone is not enough: reused toast windows must also stay
+      // non-focusable. Mouse actions remain available without keyboard focus.
+      focusable: false,
       acceptFirstMouse: macOS,
       visible: false,
       shadow: false,
     })
     await waitUntilCreated(popup)
   }
+  await popup.setFocusable(false)
   // Windows 创建 WebView 窗口时，系统或状态恢复插件可能覆盖初始坐标。
   // 窗口创建完成后每次都重新定位，确保落在任务栏工作区右下角。
   if (macOS) await popup.setBackgroundColor(backgroundColor)
